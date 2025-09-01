@@ -32,60 +32,74 @@ export const useZenotiCategories = (centerIds: string[] | null) => {
       try {
         console.log('🔄 Fetching categories for centers:', centerIds);
         
-        // Fetch categories from all centers in parallel
-        const fetchPromises = centerIds.map(async (centerId) => {
-          const url = `https://api.zenoti.com/v1/centers/${centerId}/categories?page=1&size=10&type=1`;
-          const options = {
-            method: 'GET',
-            headers: {
-              accept: 'application/json',
-              Authorization: `apikey ${import.meta.env.VITE_ZENOTI_API_KEY}`
+        // Fetch categories from all centers sequentially
+        const allCategoriesArrays: (ZenotiCategory[] | Error)[] = [];
+        
+        for (const centerId of centerIds) {
+          try {
+            console.log(`🔗 Fetching categories for center: ${centerId}`);
+            
+            const url = `https://api.zenoti.com/v1/centers/${centerId}/categories?page=1&size=10&type=1`;
+            const options = {
+              method: 'GET',
+              headers: {
+                accept: 'application/json',
+                Authorization: `apikey ${import.meta.env.VITE_ZENOTI_API_KEY}`
+              }
+            };
+
+            console.log(`🌐 Making request to: ${url}`);
+            console.log(`🔑 Using API key: ${import.meta.env.VITE_ZENOTI_API_KEY ? 'Present' : 'Missing'}`);
+
+            let response;
+            try {
+              response = await fetch(url, options);
+            } catch (fetchError) {
+              console.error(`🌐 Network error for center ${centerId}:`, fetchError);
+              allCategoriesArrays.push(new Error(`Network error: ${fetchError instanceof Error ? fetchError.message : 'Unknown network error'}`));
+              continue;
             }
-          };
+            
+            if (!response.ok) {
+              const errorText = await response.text().catch(() => 'Unable to read error response');
+              console.error(`❌ API error for center ${centerId}: ${response.status} ${response.statusText}`, errorText);
+              allCategoriesArrays.push(new Error(`API error ${response.status}: ${response.statusText} - ${errorText}`));
+              continue;
+            }
 
-          console.log(`🔗 Fetching from URL: ${url}`);
-          console.log(`🔑 Using API key: ${import.meta.env.VITE_ZENOTI_API_KEY ? 'Present' : 'Missing'}`);
-
-          let response;
-          try {
-            response = await fetch(url, options);
-          } catch (fetchError) {
-            console.error(`🌐 Network error for center ${centerId}:`, fetchError);
-            throw new Error(`Network error: ${fetchError instanceof Error ? fetchError.message : 'Unknown network error'}`);
+            let data: CategoriesResponse;
+            try {
+              data = await response.json();
+            } catch (parseError) {
+              console.error(`📄 JSON parse error for center ${centerId}:`, parseError);
+              allCategoriesArrays.push(new Error(`Failed to parse response: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`));
+              continue;
+            }
+            
+            console.log(`📋 Categories response for center ${centerId}:`, data);
+            
+            allCategoriesArrays.push(data.categories || []);
+            
+            // Add a small delay between requests to be respectful to the API
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+          } catch (error) {
+            console.error(`❌ Unexpected error for center ${centerId}:`, error);
+            allCategoriesArrays.push(error instanceof Error ? error : new Error('Unknown error'));
           }
-          
-          if (!response.ok) {
-            const errorText = await response.text().catch(() => 'Unable to read error response');
-            console.error(`❌ API error for center ${centerId}: ${response.status} ${response.statusText}`, errorText);
-            throw new Error(`API error ${response.status}: ${response.statusText} - ${errorText}`);
-          }
-
-          let data: CategoriesResponse;
-          try {
-            data = await response.json();
-          } catch (parseError) {
-            console.error(`📄 JSON parse error for center ${centerId}:`, parseError);
-            throw new Error(`Failed to parse response: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`);
-          }
-          
-          console.log(`📋 Categories response for center ${centerId}:`, data);
-          
-          return data.categories || [];
-        });
-
-        const allCategoriesArrays = await Promise.allSettled(fetchPromises);
+        }
         
         // Process results and collect any errors
         const successfulResults: ZenotiCategory[][] = [];
         const errors: string[] = [];
         
         allCategoriesArrays.forEach((result, index) => {
-          if (result.status === 'fulfilled') {
-            successfulResults.push(result.value);
-          } else {
+          if (result instanceof Error) {
             const centerId = centerIds[index];
-            console.error(`❌ Failed to fetch categories for center ${centerId}:`, result.reason);
-            errors.push(`Center ${centerId}: ${result.reason.message}`);
+            console.error(`❌ Failed to fetch categories for center ${centerId}:`, result);
+            errors.push(`Center ${centerId}: ${result.message}`);
+          } else {
+            successfulResults.push(result);
           }
         });
         
