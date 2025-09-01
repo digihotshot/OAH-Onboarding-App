@@ -15,11 +15,15 @@ export const Box = (): JSX.Element => {
   const [openCategories, setOpenCategories] = React.useState<Set<string>>(new Set());
   const [selectedServices, setSelectedServices] = React.useState<Record<string, string>>({});
 
-  // Get the provider_id for the first matched provider
-  const selectedProviderId = selectedProvider?.provider_id || null;
+  // Get all provider_ids for matched providers
+  const matchedProviderObjects = providers.filter(provider => 
+    provider.status === 'active' && 
+    matchedProviders.includes(provider.name)
+  );
+  const allProviderIds = matchedProviderObjects.map(provider => provider.provider_id);
   
   // Fetch categories for the selected provider
-  const { categories, isLoading: categoriesLoading, error: categoriesError } = useZenotiCategories(selectedProviderId);
+  const { categories, isLoading: categoriesLoading, error: categoriesError } = useZenotiCategories(allProviderIds.length > 0 ? allProviderIds : null);
 
   // Extract zip code from address and find matching providers
   const findProvidersForAddress = (address: string) => {
@@ -346,7 +350,7 @@ export const Box = (): JSX.Element => {
                 <CategoryDropdown
                   key={category.id}
                   category={category}
-                  centerId={selectedProviderId}
+                  centerId={allProviderIds[0] || ''} // Use first provider for services fetching
                   isOpen={openCategories.has(category.id)}
                   onToggle={() => toggleCategory(category.id)}
                   onServiceSelect={(serviceId) => handleServiceSelect(category.id, serviceId)}

@@ -14,13 +14,13 @@ interface CategoriesResponse {
   size: number;
 }
 
-export const useZenotiCategories = (centerId: string | null) => {
+export const useZenotiCategories = (centerIds: string[] | null) => {
   const [categories, setCategories] = useState<ZenotiCategory[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!centerId) {
+    if (!centerIds || centerIds.length === 0) {
       setCategories([]);
       return;
     }
@@ -30,27 +30,50 @@ export const useZenotiCategories = (centerId: string | null) => {
       setError(null);
 
       try {
-        const url = `https://api.zenoti.com/v1/centers/${centerId}/categories?page=1&size=10&type=1`;
-        const options = {
-          method: 'GET',
-          headers: {
-            accept: 'application/json',
-            Authorization: `apikey ${import.meta.env.VITE_ZENOTI_API_KEY}`
-          }
-        };
-
-        console.log('🔄 Fetching categories for center:', centerId);
-        const response = await fetch(url, options);
+        console.log('🔄 Fetching categories for centers:', centerIds);
         
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        // Fetch categories from all centers in parallel
+        const fetchPromises = centerIds.map(async (centerId) => {
+          const url = `https://api.zenoti.com/v1/centers/${centerId}/categories?page=1&size=10&type=1`;
+          const options = {
+            method: 'GET',
+            headers: {
+              accept: 'application/json',
+              Authorization: `apikey ${import.meta.env.VITE_ZENOTI_API_KEY}`
+            }
+          };
 
-        const data: CategoriesResponse = await response.json();
-        console.log('📋 Categories response:', data);
+          const response = await fetch(url, options);
+          
+          if (!response.ok) {
+            console.warn(`Failed to fetch categories for center ${centerId}: ${response.status}`);
+            return [];
+          }
 
+          const data: CategoriesResponse = await response.json();
+          console.log(`📋 Categories response for center ${centerId}:`, data);
+          
+          return data.categories || [];
+        });
+
+        const allCategoriesArrays = await Promise.all(fetchPromises);
+        
+        // Flatten all categories into a single array
+        const allCategories = allCategoriesArrays.flat();
+        
+        // Remove duplicates based on category ID
+        const uniqueCategories = allCategories.reduce((acc, category) => {
+          const existingCategory = acc.find(c => c.id === category.id);
+          if (!existingCategory) {
+            acc.push(category);
+          }
+          return acc;
+        }, [] as ZenotiCategory[]);
+        
         // Sort categories by display_order
-        const sortedCategories = data.categories?.sort((a, b) => a.display_order - b.display_order) || [];
+        const sortedCategories = uniqueCategories.sort((a, b) => a.display_order - b.display_order);
+        
+        console.log('📋 Merged unique categories:', sortedCategories);
         setCategories(sortedCategories);
 
       } catch (err) {
@@ -62,7 +85,7 @@ export const useZenotiCategories = (centerId: string | null) => {
     };
 
     fetchCategories();
-  }, [centerId]);
+  }, [centerIds]);
 
   return {
     categories,
