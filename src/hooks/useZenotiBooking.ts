@@ -133,15 +133,19 @@ export const useZenotiBooking = () => {
       console.log('📝 Creating booking draft for guest:', guestId);
       
       const bookingData = {
-        center_id: centerId,
-        guest_id: guestId,
-        requested_services: [
-          {
-            service_id: serviceId,
-            duration: serviceDuration
-          }
-        ]
+        booking: {
+          center_id: centerId,
+          guest_id: guestId,
+          requested_services: [
+            {
+              service_id: serviceId,
+              duration: serviceDuration
+            }
+          ]
+        }
       };
+
+      console.log('📤 Booking payload:', JSON.stringify(bookingData, null, 2));
 
       const response = await fetch(`https://api.zenoti.com/v1/bookings`, {
         method: 'POST',
