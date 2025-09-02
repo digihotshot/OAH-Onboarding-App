@@ -236,7 +236,10 @@ export const useZenotiBooking = () => {
 
       // Step 2: Create service booking
       const booking = await createServiceBooking(centerId, guest.id, serviceId, serviceDuration, appointmentDate);
-      if (!booking) return null;
+      if (!booking || !booking.id) {
+        console.error('❌ Booking creation failed or returned invalid ID');
+        return null;
+      }
 
       // Step 3: Get available slots
       const slots = await getAvailableSlots(booking.id, appointmentDate, appointmentDate);
