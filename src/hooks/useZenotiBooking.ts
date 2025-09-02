@@ -45,7 +45,7 @@ export const useZenotiBooking = () => {
       const guestData = {
         first_name: "Web",
         last_name: "Guest",
-        email: "webguest@example.com",
+        email: `webguest_${Date.now()}@example.com`,
         mobile_phone: {
           country_id: 1, // US
           number: "1234567890"
