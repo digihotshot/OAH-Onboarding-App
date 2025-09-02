@@ -48,7 +48,7 @@ export const useZenotiBooking = () => {
         email: `webguest_${Date.now()}@example.com`,
         mobile_phone: {
           country_id: 1, // US
-          number: "1234567890"
+          number: Math.floor(2000000000 + Math.random() * 8000000000).toString()
         },
         center_id: centerId
       };
