@@ -31,35 +31,19 @@ export interface AvailableSlot {
 }
 
 // Global dummy guest storage
-let globalDummyGuest: ZenotiGuest | null = null;
-
-// Load dummy guest from localStorage on module load
-const loadDummyGuestFromStorage = (): ZenotiGuest | null => {
-  try {
-    const stored = localStorage.getItem('zenoti_dummy_guest');
-    if (stored) {
-      const guest = JSON.parse(stored);
-      console.log('📦 Loaded dummy guest from localStorage:', guest.id);
-      return guest;
-    }
-  } catch (error) {
-    console.warn('⚠️ Failed to load dummy guest from localStorage:', error);
-  }
-  return null;
-};
-
-// Save dummy guest to localStorage
-const saveDummyGuestToStorage = (guest: ZenotiGuest) => {
-  try {
-    localStorage.setItem('zenoti_dummy_guest', JSON.stringify(guest));
-    console.log('💾 Saved dummy guest to localStorage:', guest.id);
-  } catch (error) {
-    console.warn('⚠️ Failed to save dummy guest to localStorage:', error);
+// Hardcoded dummy guest - reuse this across all sessions
+const HARDCODED_DUMMY_GUEST: ZenotiGuest = {
+  id: "web-guest-12345", // Use a consistent ID that won't conflict
+  first_name: "Dummy",
+  last_name: "WebGuest", 
+  email: "dummy.webguest@oliathome.com",
+  mobile_phone: {
+    country_id: 1,
+    number: "5551234567"
   }
 };
 
-// Initialize global dummy guest from localStorage
-globalDummyGuest = loadDummyGuestFromStorage();
+let globalDummyGuest: ZenotiGuest | null = HARDCODED_DUMMY_GUEST;
 
 export const useZenotiBooking = () => {
   const [webGuest, setWebGuest] = useState<ZenotiGuest | null>(null);
@@ -70,20 +54,16 @@ export const useZenotiBooking = () => {
 
   // Get or create the global dummy guest
   const getOrCreateDummyGuest = async (centerId: string) => {
-    // First check localStorage if globalDummyGuest is null
-    if (!globalDummyGuest) {
-      globalDummyGuest = loadDummyGuestFromStorage();
-    }
-    
-    // If we already have a global dummy guest, return it
+    // Always use the hardcoded dummy guest
     if (globalDummyGuest) {
-      console.log('♻️ Reusing existing dummy guest:', globalDummyGuest.id);
+      console.log('♻️ Using hardcoded dummy guest:', globalDummyGuest.id);
       setWebGuest(globalDummyGuest);
       return globalDummyGuest;
     }
 
-    // Create new dummy guest if none exists
-    return await createWebGuest(centerId);
+    // This should never happen since we have a hardcoded guest
+    console.warn('⚠️ Hardcoded dummy guest not available, this should not happen');
+    return null;
   };
 
   // Create web guest (only called once)
@@ -127,8 +107,6 @@ export const useZenotiBooking = () => {
       
       // Store globally for reuse
       globalDummyGuest = guest;
-      // Save to localStorage for persistence
-      saveDummyGuestToStorage(guest);
       setWebGuest(guest);
       return guest;
 
