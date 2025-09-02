@@ -33,24 +33,11 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
   };
 
   const getServicePrice = (service: any) => {
-    // Try different possible price fields from the API response
-    const priceFields = ['final_price', 'price', 'base_price'];
-    
-    for (const field of priceFields) {
-      const priceData = service[field];
-      if (priceData && typeof priceData === 'object' && priceData.amount !== undefined) {
-        return {
-          amount: priceData.amount,
-          currency: priceData.currency || 'USD'
-        };
-      }
-    }
-    
-    // If no structured price object, check for direct amount field
-    if (service.amount !== undefined) {
+    // Get price from price_info object as shown in the API response
+    if (service.price_info && service.price_info.final_price !== undefined) {
       return {
-        amount: service.amount,
-        currency: service.currency || 'USD'
+        amount: service.price_info.final_price,
+        currency: 'USD' // Default to USD, could also check currency_id if needed
       };
     }
     
