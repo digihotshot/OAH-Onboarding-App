@@ -138,9 +138,9 @@ export const useZenotiBooking = () => {
         guest_id: guestId,
         requested_services: [{
           service_id: serviceId,
-          duration: serviceDuration
+          duration: serviceDuration,
+          start_date_time: `${appointmentDate}T09:00:00Z`
         }],
-        date: appointmentDate,
         is_only_catalog_employees: true
       };
 
