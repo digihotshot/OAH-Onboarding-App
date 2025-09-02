@@ -133,11 +133,10 @@ export const Box = (): JSX.Element => {
     const centerId = selectedProvider?.provider_id;
     
     if (centerId && firstServiceId) {
-      const startDate = new Date().toISOString().split('T')[0];
-      const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 30 days from now
+      const appointmentDate = new Date().toISOString().split('T')[0];
       
       console.log('🔄 Initializing booking flow...');
-      const result = await initializeBookingFlow(centerId, firstServiceId.serviceId, firstServiceId.duration, startDate, endDate);
+      const result = await initializeBookingFlow(centerId, firstServiceId.serviceId, firstServiceId.duration, appointmentDate);
       
       if (result && result.slots) {
         // Extract available dates from slots

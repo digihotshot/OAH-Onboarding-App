@@ -125,8 +125,7 @@ export const useZenotiBooking = () => {
     guestId: string, 
     serviceId: string,
     serviceDuration: number,
-    startDate: string,
-    endDate: string
+    appointmentDate: string
   ) => {
     setIsLoading(true);
     setError(null);
@@ -135,18 +134,19 @@ export const useZenotiBooking = () => {
       console.log('📝 Creating booking draft for guest:', guestId);
       
       const bookingData = {
-        booking: {
-          center_id: centerId,
-          guest_id: guestId,
-          start_date: startDate,
-          end_date: endDate,
-          requested_services: [
-            {
-              service_id: serviceId,
-              duration: serviceDuration
-            }
-          ]
-        }
+        center_id: centerId,
+        date: appointmentDate,
+        guests: [
+          {
+            guest_id: guestId,
+            services: [
+              {
+                service_id: serviceId,
+                duration: serviceDuration
+              }
+            ]
+          }
+        ]
       };
 
       console.log('📤 Booking payload:', JSON.stringify(bookingData, null, 2));
@@ -225,8 +225,7 @@ export const useZenotiBooking = () => {
     centerId: string, 
     serviceId: string, 
     serviceDuration: number,
-    startDate: string, 
-    endDate: string
+    appointmentDate: string
   ) => {
     try {
       console.log('🚀 Initializing booking flow...');
@@ -236,11 +235,11 @@ export const useZenotiBooking = () => {
       if (!guest) return null;
 
       // Step 2: Create service booking
-      const booking = await createServiceBooking(centerId, guest.id, serviceId, serviceDuration, startDate, endDate);
+      const booking = await createServiceBooking(centerId, guest.id, serviceId, serviceDuration, appointmentDate);
       if (!booking) return null;
 
       // Step 3: Get available slots
-      const slots = await getAvailableSlots(booking.id, startDate, endDate);
+      const slots = await getAvailableSlots(booking.id, appointmentDate, appointmentDate);
       
       console.log('✅ Booking flow completed successfully');
       return { guest, booking, slots };
