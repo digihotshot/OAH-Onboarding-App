@@ -2,9 +2,12 @@ import React from "react";
 import { Button } from "../../components/ui/button";
 import { AddressInput } from "../../components/AddressInput";
 import { CategoryDropdown } from "../../components/CategoryDropdown";
+import { Calendar } from "../../components/Calendar";
+import { TimeSlots } from "../../components/TimeSlots";
 import { MapPin, Home, Calendar, User } from "lucide-react";
 import { providers } from "../../data/providers";
 import { useZenotiCategories } from "../../hooks/useZenotiCategories";
+import { useZenotiBooking } from "../../hooks/useZenotiBooking";
 
 export const Box = (): JSX.Element => {
   const [address, setAddress] = React.useState("");
@@ -14,6 +17,11 @@ export const Box = (): JSX.Element => {
   const [selectedProvider, setSelectedProvider] = React.useState<any>(null);
   const [openCategories, setOpenCategories] = React.useState<Set<string>>(new Set());
   const [selectedServices, setSelectedServices] = React.useState<Record<string, string>>({});
+  const [selectedDate, setSelectedDate] = React.useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = React.useState<string | null>(null);
+  const [currentMonth, setCurrentMonth] = React.useState(new Date());
+  const [availableDates, setAvailableDates] = React.useState<string[]>([]);
+  const [timeSlots, setTimeSlots] = React.useState<any[]>([]);
 
   // Fetch categories only for the selected provider to avoid quota issues
   const matchedProviderIds = React.useMemo(() => {
@@ -28,6 +36,13 @@ export const Box = (): JSX.Element => {
   const { categories, isLoading: categoriesLoading, error: categoriesError } = useZenotiCategories(
     matchedProviderIds
   );
+
+  const { 
+    initializeBookingFlow, 
+    availableSlots, 
+    isLoading: bookingLoading, 
+    error: bookingError 
+  } = useZenotiBooking();
 
   // Extract zip code from address and find matching providers
   const findProvidersForAddress = (address: string) => {
@@ -76,7 +91,9 @@ export const Box = (): JSX.Element => {
   };
 
   const handleBack = () => {
-    if (currentStep === 2) {
+    if (currentStep === 3) {
+      setCurrentStep(2);
+    } else if (currentStep === 2) {
       setCurrentStep(1);
       setShowResults(false);
       setSelectedProvider(null);
@@ -98,6 +115,52 @@ export const Box = (): JSX.Element => {
       ...prev,
       [categoryId]: serviceId
     }));
+  };
+
+  const handleNextFromStep2 = async () => {
+    // Check if at least one service is selected
+    const selectedServiceIds = Object.values(selectedServices);
+    if (selectedServiceIds.length === 0) {
+      alert('Please select at least one service');
+      return;
+    }
+
+    // Move to step 3
+    setCurrentStep(3);
+
+    // Initialize booking flow for the first selected service
+    const firstServiceId = selectedServiceIds[0];
+    const centerId = selectedProvider?.provider_id;
+    
+    if (centerId && firstServiceId) {
+      const startDate = new Date().toISOString().split('T')[0];
+      const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 30 days from now
+      
+      console.log('🔄 Initializing booking flow...');
+      const result = await initializeBookingFlow(centerId, firstServiceId, startDate, endDate);
+      
+      if (result && result.slots) {
+        // Extract available dates from slots
+        const dates = result.slots.map((slot: any) => slot.date);
+        const uniqueDates = [...new Set(dates)];
+        setAvailableDates(uniqueDates);
+        console.log('📅 Available dates:', uniqueDates);
+      }
+    }
+  };
+
+  const handleDateSelect = (date: Date) => {
+    setSelectedDate(date);
+    setSelectedTime(null);
+    
+    // Filter time slots for selected date
+    const dateString = date.toISOString().split('T')[0];
+    const slotsForDate = availableSlots.filter(slot => slot.date === dateString);
+    setTimeSlots(slotsForDate);
+  };
+
+  const handleTimeSelect = (time: string) => {
+    setSelectedTime(time);
   };
 
   // Console log the address value whenever it changes
@@ -270,6 +333,7 @@ export const Box = (): JSX.Element => {
   }
 
   // Step 2: Treatment Selection
+  if (currentStep === 2) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
@@ -373,6 +437,7 @@ export const Box = (): JSX.Element => {
               </button>
               <Button 
                 className="px-8 py-3 rounded-xl font-medium transition-colors shadow-sm bg-gray-900 hover:bg-gray-800 text-white"
+                onClick={handleNextFromStep2}
               >
                 Next
               </Button>
@@ -421,4 +486,148 @@ export const Box = (): JSX.Element => {
       </div>
     </div>
   );
+  }
+
+  // Step 3: Date & Time Selection
+  if (currentStep === 3) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        {/* Header */}
+        <header className="relative z-10 bg-white/80 backdrop-blur-sm border-b border-gray-200/50">
+          <div className="max-w-7xl mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              {/* Logo */}
+              <div className="flex items-center space-x-8">
+                <div className="text-2xl font-light text-gray-800 tracking-wide">
+                  Oli.
+                </div>
+                
+                {/* Navigation Icons */}
+                <div className="hidden md:flex items-center space-x-6">
+                  <button className="p-2 rounded-full bg-[#C2A88F]/20 text-[#C2A88F] hover:bg-[#C2A88F]/30 transition-colors">
+                    <MapPin className="w-5 h-5" />
+                  </button>
+                  <button className="p-2 rounded-full text-gray-400 hover:bg-gray-100 transition-colors">
+                    <Calendar className="w-5 h-5" />
+                  </button>
+                  <button className="p-2 rounded-full text-gray-400 hover:bg-gray-100 transition-colors">
+                    <Home className="w-5 h-5" />
+                  </button>
+                  <button className="p-2 rounded-full text-gray-400 hover:bg-gray-100 transition-colors">
+                    <User className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Sign In Button */}
+              <Button className="bg-[#C2A88F] hover:bg-[#C2A88F]/90 text-white px-6 py-2 rounded-lg font-medium transition-colors shadow-sm">
+                Sign In
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <div className="relative flex min-h-[calc(100vh-80px)]">
+          {/* Left Side - Date & Time Selection */}
+          <div className="flex-1 flex items-start justify-start px-6 lg:px-16 py-8">
+            <div className="w-full max-w-4xl">
+              {/* Step Indicator */}
+              <div className="mb-8">
+                <p className="text-sm font-medium text-[#C2A88F] tracking-wider uppercase mb-2">
+                  Step 3 of 4
+                </p>
+                <h1 className="text-4xl lg:text-5xl font-light text-gray-900 leading-tight mb-4">
+                  Select date & time
+                </h1>
+                {selectedProvider && (
+                  <p className="text-lg text-gray-600">
+                    with {selectedProvider.name}
+                  </p>
+                )}
+              </div>
+
+              {/* Booking Error */}
+              {bookingError && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-700">
+                    Error loading availability: {bookingError}
+                  </p>
+                </div>
+              )}
+
+              {/* Calendar and Time Slots */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                {/* Calendar */}
+                <Calendar
+                  selectedDate={selectedDate}
+                  onDateSelect={handleDateSelect}
+                  availableDates={availableDates}
+                  currentMonth={currentMonth}
+                  onMonthChange={setCurrentMonth}
+                />
+
+                {/* Time Slots */}
+                <TimeSlots
+                  selectedDate={selectedDate}
+                  timeSlots={timeSlots}
+                  selectedTime={selectedTime}
+                  onTimeSelect={handleTimeSelect}
+                  isLoading={bookingLoading}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-4">
+                <button 
+                  onClick={handleBack}
+                  className="text-gray-600 hover:text-gray-800 font-medium transition-colors"
+                >
+                  Back
+                </button>
+                <Button 
+                  className={`px-8 py-3 rounded-xl font-medium transition-colors shadow-sm ${
+                    selectedDate && selectedTime
+                      ? 'bg-gray-900 hover:bg-gray-800 text-white' 
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                  disabled={!selectedDate || !selectedTime}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Side - Image and Stats */}
+          <div className="hidden lg:flex flex-1 relative">
+            {/* Background Image */}
+            <div className="absolute inset-0 bg-gradient-to-l from-gray-900/20 to-transparent">
+              <img
+                src="https://images.pexels.com/photos/5069432/pexels-photo-5069432.jpeg?auto=compress&cs=tinysrgb&w=800"
+                alt="Professional skincare appointment"
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            {/* Stats Card */}
+            <div className="absolute bottom-8 left-8 right-8">
+              <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-6 shadow-xl">
+                <div className="text-3xl font-bold text-gray-900 mb-2">
+                  700+ slots
+                </div>
+                <p className="text-gray-600 leading-relaxed">
+                  booked in last month
+                </p>
+              </div>
+            </div>
+
+            {/* Decorative Elements */}
+            <div className="absolute top-1/4 -left-20 w-40 h-40 bg-[#C2A88F]/20 rounded-full blur-3xl"></div>
+            <div className="absolute bottom-1/4 -right-20 w-32 h-32 bg-[#C2A88F]/15 rounded-full blur-2xl"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 };
