@@ -134,6 +134,13 @@ export const useZenotiBooking = () => {
       console.log('📝 Creating booking draft for guest:', guestId);
       
       const bookingData = {
+        center_id: centerId,
+        guest_id: guestId,
+        requested_services: [{
+          service_id: serviceId,
+          duration: serviceDuration
+        }],
+        date: appointmentDate,
         is_only_catalog_employees: true
       };
 
