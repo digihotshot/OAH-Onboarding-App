@@ -12,7 +12,7 @@ export interface ZenotiGuest {
 }
 
 export interface ZenotiBooking {
-  id: string;
+  booking_id: string;
   center_id: string;
   guest_id: string;
   requested_services: Array<{
@@ -167,11 +167,11 @@ export const useZenotiBooking = () => {
       }
 
       const bookingResponse: ZenotiBooking = await response.json();
-      console.log('✅ Created booking draft:', bookingResponse.id);
+      console.log('✅ Created booking draft:', bookingResponse.booking_id);
       
       // Validate that we received a valid booking ID
-      if (!bookingResponse.id || typeof bookingResponse.id !== 'string' || bookingResponse.id.trim() === '') {
-        console.error('❌ Invalid booking ID received:', bookingResponse.id);
+      if (!bookingResponse.booking_id || typeof bookingResponse.booking_id !== 'string' || bookingResponse.booking_id.trim() === '') {
+        console.error('❌ Invalid booking ID received:', bookingResponse.booking_id);
         throw new Error('Invalid booking ID received from Zenoti API');
       }
       
@@ -243,13 +243,13 @@ export const useZenotiBooking = () => {
 
       // Step 2: Create service booking
       const booking = await createServiceBooking(centerId, guest.id, serviceId, serviceDuration, appointmentDate);
-      if (!booking || !booking.id) {
+      if (!booking || !booking.booking_id) {
         console.error('❌ Booking creation failed or returned invalid ID');
         return null;
       }
 
       // Step 3: Get available slots
-      const slots = await getAvailableSlots(booking.id, appointmentDate, appointmentDate);
+      const slots = await getAvailableSlots(booking.booking_id, appointmentDate, appointmentDate);
       
       console.log('✅ Booking flow completed successfully');
       return { guest, booking, slots };
