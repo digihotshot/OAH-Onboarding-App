@@ -4,7 +4,7 @@ import { AddressInput } from "../../components/AddressInput";
 import { CategoryDropdown } from "../../components/CategoryDropdown";
 import { Calendar } from "../../components/Calendar";
 import { TimeSlots } from "../../components/TimeSlots";
-import { MapPin, Home, Calendar, User } from "lucide-react";
+import { MapPin, Home, Calendar as CalendarIcon, User } from "lucide-react";
 import { providers } from "../../data/providers";
 import { useZenotiCategories } from "../../hooks/useZenotiCategories";
 import { useZenotiBooking } from "../../hooks/useZenotiBooking";
@@ -192,7 +192,7 @@ export const Box = (): JSX.Element => {
                   <MapPin className="w-5 h-5" />
                 </button>
                 <button className="p-2 rounded-full text-gray-400 hover:bg-gray-100 transition-colors">
-                  <Calendar className="w-5 h-5" />
+                  <CalendarIcon className="w-5 h-5" />
                 </button>
                 <button className="p-2 rounded-full text-gray-400 hover:bg-gray-100 transition-colors">
                   <Home className="w-5 h-5" />
@@ -352,7 +352,7 @@ export const Box = (): JSX.Element => {
                   <MapPin className="w-5 h-5" />
                 </button>
                 <button className="p-2 rounded-full text-gray-400 hover:bg-gray-100 transition-colors">
-                  <Calendar className="w-5 h-5" />
+                  <CalendarIcon className="w-5 h-5" />
                 </button>
                 <button className="p-2 rounded-full text-gray-400 hover:bg-gray-100 transition-colors">
                   <Home className="w-5 h-5" />
@@ -508,7 +508,7 @@ export const Box = (): JSX.Element => {
                     <MapPin className="w-5 h-5" />
                   </button>
                   <button className="p-2 rounded-full text-gray-400 hover:bg-gray-100 transition-colors">
-                    <Calendar className="w-5 h-5" />
+                    <CalendarIcon className="w-5 h-5" />
                   </button>
                   <button className="p-2 rounded-full text-gray-400 hover:bg-gray-100 transition-colors">
                     <Home className="w-5 h-5" />
