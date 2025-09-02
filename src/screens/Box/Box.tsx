@@ -137,7 +137,7 @@ export const Box = (): JSX.Element => {
       const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 30 days from now
       
       console.log('🔄 Initializing booking flow...');
-      const result = await initializeBookingFlow(centerId, firstServiceId, startDate, endDate);
+      const result = await initializeBookingFlow(centerId, firstServiceId.serviceId, firstServiceId.duration, startDate, endDate);
       
       if (result && result.slots) {
         // Extract available dates from slots
