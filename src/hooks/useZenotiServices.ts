@@ -53,6 +53,17 @@ export const useZenotiServices = (centerId: string | null, categoryId: string | 
 
         const data: ServicesResponse = await response.json();
         console.log('💉 Services response for category', categoryId, ':', data);
+        
+        // Debug: Log each service with its price info
+        if (data.services) {
+          data.services.forEach((service, index) => {
+            console.log(`💰 Service ${index + 1}: ${service.name}`, {
+              price: service.price,
+              duration: service.duration,
+              id: service.id
+            });
+          });
+        }
 
         setServices(data.services || []);
 

@@ -138,7 +138,10 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
                   
                   <div className="text-right">
                     <div className="font-semibold text-gray-900">
-                      {service.price ? formatPrice(service.price.amount, service.price.currency) : 'Price not available'}
+                      {service.price && service.price.amount !== undefined ? 
+                        formatPrice(service.price.amount, service.price.currency) : 
+                        'Price not available'
+                      }
                     </div>
                     <div className="text-sm text-gray-600 flex items-center justify-end mt-1">
                       <Clock className="w-3 h-3 mr-1" />
