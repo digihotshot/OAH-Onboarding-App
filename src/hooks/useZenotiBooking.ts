@@ -151,7 +151,7 @@ export const useZenotiBooking = () => {
 
       console.log('📤 Booking payload:', JSON.stringify(bookingData, null, 2));
 
-      const response = await fetch(`https://api.zenoti.com/v1/bookings/true`, {
+      const response = await fetch(`https://api.zenoti.com/v1/bookings?is_double_booking_enabled=true`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
