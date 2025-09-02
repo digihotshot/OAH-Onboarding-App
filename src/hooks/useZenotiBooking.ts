@@ -134,19 +134,7 @@ export const useZenotiBooking = () => {
       console.log('📝 Creating booking draft for guest:', guestId);
       
       const bookingData = {
-        center_id: centerId,
-        date: appointmentDate,
-        guests: [
-          {
-            guest_id: guestId,
-            services: [
-              {
-                service_id: serviceId,
-                duration: serviceDuration
-              }
-            ]
-          }
-        ]
+        is_only_catalog_employees: true
       };
 
       console.log('📤 Booking payload:', JSON.stringify(bookingData, null, 2));
@@ -154,6 +142,7 @@ export const useZenotiBooking = () => {
       const response = await fetch(`https://api.zenoti.com/v1/bookings?is_double_booking_enabled=true`, {
         method: 'POST',
         headers: {
+          'accept': 'application/json',
           'Content-Type': 'application/json',
           'Authorization': `apikey ${import.meta.env.VITE_ZENOTI_API_KEY}`
         },
