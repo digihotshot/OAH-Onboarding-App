@@ -135,13 +135,15 @@ export const useZenotiBooking = () => {
       
       const bookingData = {
         center_id: centerId,
-        guest_id: guestId,
-        requested_services: [{
-          service_id: serviceId,
-          duration: serviceDuration,
-          start_date_time: `${appointmentDate}T09:00:00Z`
-        }],
+        date: appointmentDate,
         is_only_catalog_employees: true
+        guests: [{
+          guest_id: guestId,
+          services: [{
+            service_id: serviceId,
+            duration: serviceDuration
+          }]
+        }]
       };
 
       console.log('📤 Booking payload:', JSON.stringify(bookingData, null, 2));
