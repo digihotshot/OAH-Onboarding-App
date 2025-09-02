@@ -162,7 +162,7 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
                     })()}
                     <div className="text-sm text-gray-600 flex items-center justify-end mt-1">
                       <Clock className="w-3 h-3 mr-1" />
-                      {formatDuration(service.duration)}
+                      {service.duration} min
                     </div>
                   </div>
                 </label>
