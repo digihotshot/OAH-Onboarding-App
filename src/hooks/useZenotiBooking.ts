@@ -18,6 +18,7 @@ export interface ZenotiBooking {
   requested_services: Array<{
     service_id: string;
     therapist_id?: string;
+    duration?: number;
   }>;
 }
 
@@ -109,7 +110,8 @@ export const useZenotiBooking = () => {
   const createServiceBooking = async (
     centerId: string, 
     guestId: string, 
-    serviceId: string
+    serviceId: string,
+    serviceDuration: number
   ) => {
     setIsLoading(true);
     setError(null);
@@ -122,7 +124,8 @@ export const useZenotiBooking = () => {
         guest_id: guestId,
         requested_services: [
           {
-            service_id: serviceId
+            service_id: serviceId,
+            duration: serviceDuration
           }
         ]
       };
@@ -200,6 +203,7 @@ export const useZenotiBooking = () => {
   const initializeBookingFlow = async (
     centerId: string, 
     serviceId: string, 
+    serviceDuration: number,
     startDate: string, 
     endDate: string
   ) => {
@@ -211,7 +215,7 @@ export const useZenotiBooking = () => {
       if (!guest) return null;
 
       // Step 2: Create service booking
-      const booking = await createServiceBooking(centerId, guest.id, serviceId);
+      const booking = await createServiceBooking(centerId, guest.id, serviceId, serviceDuration);
       if (!booking) return null;
 
       // Step 3: Get available slots

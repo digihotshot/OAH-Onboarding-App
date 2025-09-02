@@ -16,7 +16,7 @@ export const Box = (): JSX.Element => {
   const [currentStep, setCurrentStep] = React.useState(1);
   const [selectedProvider, setSelectedProvider] = React.useState<any>(null);
   const [openCategories, setOpenCategories] = React.useState<Set<string>>(new Set());
-  const [selectedServices, setSelectedServices] = React.useState<Record<string, string>>({});
+  const [selectedServices, setSelectedServices] = React.useState<Record<string, {serviceId: string, duration: number}>>({});
   const [selectedDate, setSelectedDate] = React.useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = React.useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = React.useState(new Date());
@@ -110,10 +110,10 @@ export const Box = (): JSX.Element => {
     setOpenCategories(newOpenCategories);
   };
 
-  const handleServiceSelect = (categoryId: string, serviceId: string) => {
+  const handleServiceSelect = (categoryId: string, serviceId: string, duration: number) => {
     setSelectedServices(prev => ({
       ...prev,
-      [categoryId]: serviceId
+      [categoryId]: {serviceId, duration}
     }));
   };
 
@@ -421,8 +421,8 @@ export const Box = (): JSX.Element => {
                   centerId={selectedProvider?.provider_id || ''} // Use selected provider for services fetching
                   isOpen={openCategories.has(category.id)}
                   onToggle={() => toggleCategory(category.id)}
-                  onServiceSelect={(serviceId) => handleServiceSelect(category.id, serviceId)}
-                  selectedServiceId={selectedServices[category.id]}
+                  onServiceSelect={(serviceId, duration) => handleServiceSelect(category.id, serviceId, duration)}
+                  selectedServiceId={selectedServices[category.id]?.serviceId}
                 />
               ))}
             </div>

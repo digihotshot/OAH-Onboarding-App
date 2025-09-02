@@ -8,7 +8,7 @@ interface CategoryDropdownProps {
   centerId: string;
   isOpen: boolean;
   onToggle: () => void;
-  onServiceSelect?: (serviceId: string) => void;
+  onServiceSelect?: (serviceId: string, duration: number) => void;
   selectedServiceId?: string;
 }
 
@@ -133,7 +133,7 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
                       name={`category-${category.id}`}
                       value={service.id}
                       checked={selectedServiceId === service.id}
-                      onChange={() => onServiceSelect?.(service.id)}
+                      onChange={() => onServiceSelect?.(service.id, service.duration)}
                       className="w-4 h-4 text-[#C2A88F] border-gray-300 focus:ring-[#C2A88F] focus:ring-2"
                     />
                     <div>
