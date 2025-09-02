@@ -5,10 +5,18 @@ export interface ZenotiService {
   name: string;
   description?: string;
   duration: number; // in minutes
-  price: {
+  price?: {
     amount: number;
     currency: string;
-  };
+  } | null;
+  final_price?: {
+    amount: number;
+    currency: string;
+  } | null;
+  base_price?: {
+    amount: number;
+    currency: string;
+  } | null;
   category_id: string;
 }
 
@@ -54,13 +62,17 @@ export const useZenotiServices = (centerId: string | null, categoryId: string | 
         const data: ServicesResponse = await response.json();
         console.log('💉 Services response for category', categoryId, ':', data);
         
-        // Debug: Log each service with its price info
+        // Debug: Log each service with detailed price info
         if (data.services) {
           data.services.forEach((service, index) => {
-            console.log(`💰 Service ${index + 1}: ${service.name}`, {
+            console.log(`💰 Service ${index + 1}: ${service.name}`);
+            console.log('  📊 Full service object:', service);
+            console.log('  💵 Price fields:', {
               price: service.price,
-              duration: service.duration,
-              id: service.id
+              final_price: (service as any).final_price,
+              base_price: (service as any).base_price,
+              amount: (service as any).amount,
+              currency: (service as any).currency
             });
           });
         }

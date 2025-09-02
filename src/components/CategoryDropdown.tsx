@@ -32,6 +32,31 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
     }).format(amount);
   };
 
+  const getServicePrice = (service: any) => {
+    // Try different possible price fields from the API response
+    const priceFields = ['final_price', 'price', 'base_price'];
+    
+    for (const field of priceFields) {
+      const priceData = service[field];
+      if (priceData && typeof priceData === 'object' && priceData.amount !== undefined) {
+        return {
+          amount: priceData.amount,
+          currency: priceData.currency || 'USD'
+        };
+      }
+    }
+    
+    // If no structured price object, check for direct amount field
+    if (service.amount !== undefined) {
+      return {
+        amount: service.amount,
+        currency: service.currency || 'USD'
+      };
+    }
+    
+    return null;
+  };
+
   const formatDuration = (minutes: number) => {
     if (minutes < 60) {
       return `${minutes}min`;
@@ -137,12 +162,17 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
                   </div>
                   
                   <div className="text-right">
-                    <div className="font-semibold text-gray-900">
-                      {service.price && service.price.amount !== undefined ? 
-                        formatPrice(service.price.amount, service.price.currency) : 
-                        'Price not available'
-                      }
-                    </div>
+                    {(() => {
+                      const priceInfo = getServicePrice(service);
+                      return (
+                        <div className="font-semibold text-gray-900">
+                          {priceInfo ? 
+                            formatPrice(priceInfo.amount, priceInfo.currency) : 
+                            'Price not available'
+                          }
+                        </div>
+                      );
+                    })()}
                     <div className="text-sm text-gray-600 flex items-center justify-end mt-1">
                       <Clock className="w-3 h-3 mr-1" />
                       {formatDuration(service.duration)}
