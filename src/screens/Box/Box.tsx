@@ -17,7 +17,12 @@ export const Box = (): JSX.Element => {
 
   // Fetch categories only for the selected provider to avoid quota issues
   const { categories, isLoading: categoriesLoading, error: categoriesError } = useZenotiCategories(
-    selectedProvider ? [selectedProvider.provider_id] : null
+    matchedProviders.length > 0 ? providers
+      .filter(provider => 
+        provider.status === 'active' && 
+        matchedProviders.includes(provider.name)
+      )
+      .map(provider => provider.provider_id) : null
   );
 
   // Extract zip code from address and find matching providers

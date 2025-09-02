@@ -32,8 +32,8 @@ export const useZenotiCategories = (centerIds: string[] | null) => {
       try {
         console.log('🔄 Fetching categories for centers:', centerIds);
         
-        // Fetch categories from all centers sequentially
-        const allCategoriesArrays: (ZenotiCategory[] | Error)[] = [];
+        // Fetch categories from all centers sequentially with longer delays
+        const providerCategories: { [providerId: string]: ZenotiCategory[] } = {};
         
         for (const centerId of centerIds) {
           try {
@@ -56,14 +56,19 @@ export const useZenotiCategories = (centerIds: string[] | null) => {
               response = await fetch(url, options);
             } catch (fetchError) {
               console.error(`🌐 Network error for center ${centerId}:`, fetchError);
-              allCategoriesArrays.push(new Error(`Network error: ${fetchError instanceof Error ? fetchError.message : 'Unknown network error'}`));
+              console.warn(`⚠️ Skipping center ${centerId} due to network error`);
               continue;
             }
             
             if (!response.ok) {
               const errorText = await response.text().catch(() => 'Unable to read error response');
               console.error(`❌ API error for center ${centerId}: ${response.status} ${response.statusText}`, errorText);
-              allCategoriesArrays.push(new Error(`API error ${response.status}: ${response.statusText} - ${errorText}`));
+              
+              // If quota exceeded, stop fetching more to avoid further quota issues
+              if (response.status === 429) {
+                console.warn(`⚠️ Quota exceeded, stopping further requests`);
+                break;
+              }
               continue;
             }
 
@@ -72,63 +77,59 @@ export const useZenotiCategories = (centerIds: string[] | null) => {
               data = await response.json();
             } catch (parseError) {
               console.error(`📄 JSON parse error for center ${centerId}:`, parseError);
-              allCategoriesArrays.push(new Error(`Failed to parse response: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`));
+              console.warn(`⚠️ Skipping center ${centerId} due to JSON parse error`);
               continue;
             }
             
             console.log(`📋 Categories response for center ${centerId}:`, data);
             
-            allCategoriesArrays.push(data.categories || []);
+            providerCategories[centerId] = data.categories || [];
             
-            // Add a small delay between requests to be respectful to the API
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // Add a longer delay between requests to avoid quota issues
+            await new Promise(resolve => setTimeout(resolve, 500));
             
           } catch (error) {
             console.error(`❌ Unexpected error for center ${centerId}:`, error);
-            allCategoriesArrays.push(error instanceof Error ? error : new Error('Unknown error'));
+            console.warn(`⚠️ Skipping center ${centerId} due to unexpected error`);
           }
         }
         
-        // Process results and collect any errors
-        const successfulResults: ZenotiCategory[][] = [];
-        const errors: string[] = [];
+        // Find common categories across all successful providers
+        const successfulProviders = Object.keys(providerCategories);
+        console.log(`✅ Successfully fetched categories from ${successfulProviders.length} providers`);
         
-        allCategoriesArrays.forEach((result, index) => {
-          if (result instanceof Error) {
-            const centerId = centerIds[index];
-            console.error(`❌ Failed to fetch categories for center ${centerId}:`, result);
-            errors.push(`Center ${centerId}: ${result.message}`);
-          } else {
-            successfulResults.push(result);
-          }
-        });
-        
-        // If all requests failed, throw an error with details
-        if (successfulResults.length === 0) {
-          throw new Error(`All category requests failed:\n${errors.join('\n')}`);
+        if (successfulProviders.length === 0) {
+          throw new Error('No categories could be fetched from any provider');
         }
         
-        // If some requests failed, log warnings but continue
-        if (errors.length > 0) {
-          console.warn(`⚠️ Some category requests failed:`, errors);
+        // If only one provider succeeded, use its categories
+        if (successfulProviders.length === 1) {
+          const singleProviderCategories = providerCategories[successfulProviders[0]];
+          const sortedCategories = singleProviderCategories.sort((a, b) => a.display_order - b.display_order);
+          console.log('📋 Using categories from single successful provider:', sortedCategories);
+          setCategories(sortedCategories);
+          return;
         }
         
-        // Flatten all categories into a single array
-        const allCategories = successfulResults.flat();
+        // Find categories that exist in ALL successful providers
+        const firstProviderCategories = providerCategories[successfulProviders[0]];
+        const commonCategories: ZenotiCategory[] = [];
         
-        // Remove duplicates based on category ID
-        const uniqueCategories = allCategories.reduce((acc, category) => {
-          const existingCategory = acc.find(c => c.id === category.id);
-          if (!existingCategory) {
-            acc.push(category);
+        for (const category of firstProviderCategories) {
+          // Check if this category exists in ALL other providers
+          const existsInAllProviders = successfulProviders.slice(1).every(providerId => {
+            return providerCategories[providerId].some(c => c.id === category.id);
+          });
+          
+          if (existsInAllProviders) {
+            commonCategories.push(category);
           }
-          return acc;
-        }, [] as ZenotiCategory[]);
+        }
         
-        // Sort categories by display_order
-        const sortedCategories = uniqueCategories.sort((a, b) => a.display_order - b.display_order);
+        // Sort common categories by display_order
+        const sortedCategories = commonCategories.sort((a, b) => a.display_order - b.display_order);
         
-        console.log('📋 Merged unique categories:', sortedCategories);
+        console.log(`📋 Found ${commonCategories.length} common categories across ${successfulProviders.length} providers:`, sortedCategories);
         setCategories(sortedCategories);
 
       } catch (err) {
