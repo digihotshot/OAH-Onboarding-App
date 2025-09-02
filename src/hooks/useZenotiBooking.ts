@@ -124,7 +124,9 @@ export const useZenotiBooking = () => {
     centerId: string, 
     guestId: string, 
     serviceId: string,
-    serviceDuration: number
+    serviceDuration: number,
+    startDate: string,
+    endDate: string
   ) => {
     setIsLoading(true);
     setError(null);
@@ -136,6 +138,8 @@ export const useZenotiBooking = () => {
         booking: {
           center_id: centerId,
           guest_id: guestId,
+          start_date: startDate,
+          end_date: endDate,
           requested_services: [
             {
               service_id: serviceId,
@@ -232,7 +236,7 @@ export const useZenotiBooking = () => {
       if (!guest) return null;
 
       // Step 2: Create service booking
-      const booking = await createServiceBooking(centerId, guest.id, serviceId, serviceDuration);
+      const booking = await createServiceBooking(centerId, guest.id, serviceId, serviceDuration, startDate, endDate);
       if (!booking) return null;
 
       // Step 3: Get available slots
