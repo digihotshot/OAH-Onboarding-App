@@ -30,14 +30,14 @@ export const useZenotiCategories = (centerIds: string[] | null) => {
       setError(null);
 
       try {
-        console.log('🔄 Fetching categories for centers:', centerIds);
+        console.log(`🔄 Fetching categories for ${centerIds.length} providers:`, centerIds);
         
-        // Fetch categories from each center sequentially (one at a time)
+        // Fetch categories from each provider sequentially (one at a time)
         const allProviderCategories: { [providerId: string]: ZenotiCategory[] } = {};
         
         for (const centerId of centerIds) {
           try {
-            console.log(`🔗 Fetching categories for center: ${centerId} (${Object.keys(allProviderCategories).length + 1}/${centerIds.length})`);
+            console.log(`🔗 Fetching categories for provider: ${centerId} (${Object.keys(allProviderCategories).length + 1}/${centerIds.length})`);
             
             const url = `https://api.zenoti.com/v1/centers/${centerId}/categories?page=1&size=10&type=1`;
             const options = {
@@ -54,34 +54,34 @@ export const useZenotiCategories = (centerIds: string[] | null) => {
             
             if (!response.ok) {
               const errorText = await response.text();
-              console.error(`❌ API error for center ${centerId}: ${response.status}`, errorText);
+              console.error(`❌ API error for provider ${centerId}: ${response.status}`, errorText);
               
               // If quota exceeded, stop all further requests
               if (response.status === 429) {
-                console.warn(`⚠️ Quota exceeded at center ${centerId}, stopping all requests`);
+                console.warn(`⚠️ Quota exceeded at provider ${centerId}, stopping all requests`);
                 setError('API quota exceeded. Please try again later or contact support.');
                 return;
               }
               
-              console.warn(`⚠️ Skipping center ${centerId} due to API error`);
+              console.warn(`⚠️ Skipping provider ${centerId} due to API error`);
               continue;
             }
 
             const data: CategoriesResponse = await response.json();
             
-            console.log(`📋 Categories response for center ${centerId}:`, data);
+            console.log(`📋 Categories response for provider ${centerId}:`, data);
             
             allProviderCategories[centerId] = data.categories || [];
             
             // Add delay between requests to be respectful to the API
             if (Object.keys(allProviderCategories).length < centerIds.length) {
-              console.log('⏳ Waiting 1 second before next request...');
+              console.log('⏳ Waiting 1 second before next provider request...');
               await new Promise(resolve => setTimeout(resolve, 1000));
             }
             
           } catch (error) {
-            console.error(`❌ Unexpected error for center ${centerId}:`, error);
-            console.warn(`⚠️ Skipping center ${centerId} due to unexpected error`);
+            console.error(`❌ Unexpected error for provider ${centerId}:`, error);
+            console.warn(`⚠️ Skipping provider ${centerId} due to unexpected error`);
           }
         }
         
@@ -103,12 +103,12 @@ export const useZenotiCategories = (centerIds: string[] | null) => {
           return;
         }
         
-        // Find common categories that exist in ALL successful providers
+        // Find common categories by category_id that exist in ALL successful providers
         const firstProviderCategories = allProviderCategories[successfulProviders[0]];
         const commonCategories: ZenotiCategory[] = [];
         
         for (const category of firstProviderCategories) {
-          // Check if this category (by ID) exists in ALL other providers
+          // Check if this category_id exists in ALL other providers
           const existsInAllProviders = successfulProviders.slice(1).every(providerId => {
             return allProviderCategories[providerId].some(c => c.id === category.id);
           });
@@ -121,7 +121,8 @@ export const useZenotiCategories = (centerIds: string[] | null) => {
         // Sort common categories by display_order
         const sortedCategories = commonCategories.sort((a, b) => a.display_order - b.display_order);
         
-        console.log(`📋 Found ${sortedCategories.length} common categories across ${successfulProviders.length} providers:`, sortedCategories);
+        console.log(`📋 Found ${sortedCategories.length} common categories (by category_id) across ${successfulProviders.length} providers:`, sortedCategories);
+        console.log(`🔍 Common category IDs:`, sortedCategories.map(c => c.id));
         setCategories(sortedCategories);
 
       } catch (err) {
