@@ -94,35 +94,26 @@ export const useZenotiCategories = (centerIds: string[] | null) => {
           return;
         }
         
-        // If only one provider succeeded, use its categories
-        if (successfulProviders.length === 1) {
-          const singleProviderCategories = allProviderCategories[successfulProviders[0]];
-          const sortedCategories = singleProviderCategories.sort((a, b) => a.display_order - b.display_order);
-          console.log(`📋 Using categories from single provider (${successfulProviders[0]}):`, sortedCategories);
-          setCategories(sortedCategories);
-          return;
-        }
+        // Collect all categories from all providers and get unique ones by category_id
+        const allCategories: ZenotiCategory[] = [];
+        const seenCategoryIds = new Set<string>();
         
-        // Find common categories by category_id that exist in ALL successful providers
-        const firstProviderCategories = allProviderCategories[successfulProviders[0]];
-        const commonCategories: ZenotiCategory[] = [];
-        
-        for (const category of firstProviderCategories) {
-          // Check if this category_id exists in ALL other providers
-          const existsInAllProviders = successfulProviders.slice(1).every(providerId => {
-            return allProviderCategories[providerId].some(c => c.id === category.id);
-          });
-          
-          if (existsInAllProviders) {
-            commonCategories.push(category);
+        // Go through all providers and collect unique categories by category_id
+        for (const providerId of successfulProviders) {
+          const providerCategories = allProviderCategories[providerId];
+          for (const category of providerCategories) {
+            if (!seenCategoryIds.has(category.id)) {
+              seenCategoryIds.add(category.id);
+              allCategories.push(category);
+            }
           }
         }
         
-        // Sort common categories by display_order
-        const sortedCategories = commonCategories.sort((a, b) => a.display_order - b.display_order);
+        // Sort unique categories by display_order
+        const sortedCategories = allCategories.sort((a, b) => a.display_order - b.display_order);
         
-        console.log(`📋 Found ${sortedCategories.length} common categories (by category_id) across ${successfulProviders.length} providers:`, sortedCategories);
-        console.log(`🔍 Common category IDs:`, sortedCategories.map(c => c.id));
+        console.log(`📋 Found ${sortedCategories.length} unique categories (by category_id) across ${successfulProviders.length} providers:`, sortedCategories);
+        console.log(`🔍 Unique category IDs:`, sortedCategories.map(c => c.id));
         setCategories(sortedCategories);
 
       } catch (err) {
