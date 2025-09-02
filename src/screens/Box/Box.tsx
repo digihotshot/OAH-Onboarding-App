@@ -16,8 +16,17 @@ export const Box = (): JSX.Element => {
   const [selectedServices, setSelectedServices] = React.useState<Record<string, string>>({});
 
   // Fetch categories only for the selected provider to avoid quota issues
+  const matchedProviderIds = React.useMemo(() => {
+    if (!matchedProviders.length) return null;
+    
+    return matchedProviders.map(providerName => {
+      const provider = providers.find(p => p.name === providerName);
+      return provider?.provider_id;
+    }).filter(Boolean) as string[];
+  }, [matchedProviders]);
+
   const { categories, isLoading: categoriesLoading, error: categoriesError } = useZenotiCategories(
-    selectedProvider ? [selectedProvider.provider_id] : null
+    matchedProviderIds
   );
 
   // Extract zip code from address and find matching providers
