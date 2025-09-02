@@ -33,7 +33,7 @@ export interface AvailableSlot {
 // Global dummy guest storage
 // Hardcoded dummy guest - reuse this across all sessions
 const HARDCODED_DUMMY_GUEST: ZenotiGuest = {
-  id: "", // Will be set by Zenoti API
+  id: "web-guest-12345", // Use a consistent ID that won't conflict
   first_name: "Dummy",
   last_name: "WebGuest", 
   email: "dummy.webguest@oliathome.com",
@@ -43,7 +43,7 @@ const HARDCODED_DUMMY_GUEST: ZenotiGuest = {
   }
 };
 
-let globalDummyGuest: ZenotiGuest | null = null;
+let globalDummyGuest: ZenotiGuest | null = HARDCODED_DUMMY_GUEST;
 
 export const useZenotiBooking = () => {
   const [webGuest, setWebGuest] = useState<ZenotiGuest | null>(null);
@@ -54,16 +54,16 @@ export const useZenotiBooking = () => {
 
   // Get or create the global dummy guest
   const getOrCreateDummyGuest = async (centerId: string) => {
-    // Use existing guest if available
+    // Always use the hardcoded dummy guest
     if (globalDummyGuest) {
-      console.log('♻️ Using existing dummy guest:', globalDummyGuest.id);
+      console.log('♻️ Using hardcoded dummy guest:', globalDummyGuest.id);
       setWebGuest(globalDummyGuest);
       return globalDummyGuest;
     }
 
-    // Create new guest if none exists
-    console.log('🆕 No existing guest, creating new one...');
-    return await createWebGuest(centerId);
+    // This should never happen since we have a hardcoded guest
+    console.warn('⚠️ Hardcoded dummy guest not available, this should not happen');
+    return null;
   };
 
   // Create web guest (only called once)
@@ -169,13 +169,10 @@ export const useZenotiBooking = () => {
       const bookingResponse: ZenotiBooking = await response.json();
       console.log('✅ Created booking draft:', bookingResponse.id);
       
-      // Log the full response to see what we're getting
-      console.log('📋 Full booking response:', JSON.stringify(bookingResponse, null, 2));
-      
-      // Check if we have a booking ID in the response
-      if (!bookingResponse.id) {
-        console.error('❌ No booking ID in response:', bookingResponse);
-        throw new Error('No booking ID returned from Zenoti API');
+      // Validate that we received a valid booking ID
+      if (!bookingResponse.id || typeof bookingResponse.id !== 'string' || bookingResponse.id.trim() === '') {
+        console.error('❌ Invalid booking ID received:', bookingResponse.id);
+        throw new Error('Invalid booking ID received from Zenoti API');
       }
       
       setBooking(bookingResponse);
@@ -246,8 +243,8 @@ export const useZenotiBooking = () => {
 
       // Step 2: Create service booking
       const booking = await createServiceBooking(centerId, guest.id, serviceId, serviceDuration, appointmentDate);
-      if (!booking) {
-        console.error('❌ Booking creation failed');
+      if (!booking || !booking.id) {
+        console.error('❌ Booking creation failed or returned invalid ID');
         return null;
       }
 
