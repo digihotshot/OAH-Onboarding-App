@@ -61,12 +61,14 @@ export const useZenotiBooking = () => {
       console.log('🆕 Creating new dummy guest...');
       
       const guestData = {
-        first_name: "Dummy",
-        last_name: "WebGuest",
-        email: `dummy.webguest.${Date.now()}@oliathome.com`,
-        mobile_phone: {
-          country_id: 1, // US
-          number: `555${Math.floor(1000000 + Math.random() * 9000000)}`
+        personal_info: {
+          first_name: "Dummy",
+          last_name: "WebGuest",
+          email: `dummy.webguest.${Date.now()}@oliathome.com`,
+          mobile_phone: {
+            country_id: 1, // US
+            number: `555${Math.floor(1000000 + Math.random() * 9000000)}`
+          }
         },
         center_id: centerId
       };
