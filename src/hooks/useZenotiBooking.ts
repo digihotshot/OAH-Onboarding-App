@@ -168,6 +168,13 @@ export const useZenotiBooking = () => {
 
       const bookingResponse: ZenotiBooking = await response.json();
       console.log('✅ Created booking draft:', bookingResponse.id);
+      
+      // Validate that we received a valid booking ID
+      if (!bookingResponse.id || typeof bookingResponse.id !== 'string' || bookingResponse.id.trim() === '') {
+        console.error('❌ Invalid booking ID received:', bookingResponse.id);
+        throw new Error('Invalid booking ID received from Zenoti API');
+      }
+      
       setBooking(bookingResponse);
       return bookingResponse;
 
