@@ -67,7 +67,8 @@ export const useZenotiCategories = (centerIds: string[] | null) => {
               // If quota exceeded, stop fetching more to avoid further quota issues
               if (response.status === 429) {
                 console.warn(`⚠️ Quota exceeded, stopping further requests`);
-                break;
+                setError('API quota exceeded. Please try again later or contact support.');
+                return;
               }
               continue;
             }
@@ -99,7 +100,11 @@ export const useZenotiCategories = (centerIds: string[] | null) => {
         console.log(`✅ Successfully fetched categories from ${successfulProviders.length} providers`);
         
         if (successfulProviders.length === 0) {
-          throw new Error('No categories could be fetched from any provider');
+          // Don't throw here if we already set a specific error (like quota exceeded)
+          if (!error) {
+            setError('No categories could be fetched from any provider');
+          }
+          return;
         }
         
         // If only one provider succeeded, use its categories
