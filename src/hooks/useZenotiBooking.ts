@@ -33,6 +33,34 @@ export interface AvailableSlot {
 // Global dummy guest storage
 let globalDummyGuest: ZenotiGuest | null = null;
 
+// Load dummy guest from localStorage on module load
+const loadDummyGuestFromStorage = (): ZenotiGuest | null => {
+  try {
+    const stored = localStorage.getItem('zenoti_dummy_guest');
+    if (stored) {
+      const guest = JSON.parse(stored);
+      console.log('📦 Loaded dummy guest from localStorage:', guest.id);
+      return guest;
+    }
+  } catch (error) {
+    console.warn('⚠️ Failed to load dummy guest from localStorage:', error);
+  }
+  return null;
+};
+
+// Save dummy guest to localStorage
+const saveDummyGuestToStorage = (guest: ZenotiGuest) => {
+  try {
+    localStorage.setItem('zenoti_dummy_guest', JSON.stringify(guest));
+    console.log('💾 Saved dummy guest to localStorage:', guest.id);
+  } catch (error) {
+    console.warn('⚠️ Failed to save dummy guest to localStorage:', error);
+  }
+};
+
+// Initialize global dummy guest from localStorage
+globalDummyGuest = loadDummyGuestFromStorage();
+
 export const useZenotiBooking = () => {
   const [webGuest, setWebGuest] = useState<ZenotiGuest | null>(null);
   const [booking, setBooking] = useState<ZenotiBooking | null>(null);
@@ -42,6 +70,11 @@ export const useZenotiBooking = () => {
 
   // Get or create the global dummy guest
   const getOrCreateDummyGuest = async (centerId: string) => {
+    // First check localStorage if globalDummyGuest is null
+    if (!globalDummyGuest) {
+      globalDummyGuest = loadDummyGuestFromStorage();
+    }
+    
     // If we already have a global dummy guest, return it
     if (globalDummyGuest) {
       console.log('♻️ Reusing existing dummy guest:', globalDummyGuest.id);
@@ -94,6 +127,8 @@ export const useZenotiBooking = () => {
       
       // Store globally for reuse
       globalDummyGuest = guest;
+      // Save to localStorage for persistence
+      saveDummyGuestToStorage(guest);
       setWebGuest(guest);
       return guest;
 
