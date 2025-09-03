@@ -66,7 +66,7 @@ export const useZenotiBooking = () => {
       
       const bookingData = {
         center_id: centerId,
-        date: appointmentDate,
+        start_time: `${appointmentDate}T09:00:00Z`,
         guests: [{
           id: guestId,
           items: [{
@@ -103,8 +103,8 @@ export const useZenotiBooking = () => {
       const bookingResponse: ZenotiBooking = await response.json();
       console.log('✅ API Response:', JSON.stringify(bookingResponse, null, 2));
       
-      // Extract booking ID from nested response structure
-      const bookingId = bookingResponse.booking?.id;
+      // Extract booking ID from response structure
+      const bookingId = bookingResponse.booking_id;
       console.log('✅ Extracted booking ID:', bookingId);
       
       // Validate that we received a valid booking ID
