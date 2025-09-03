@@ -31,19 +31,8 @@ export interface AvailableSlot {
 }
 
 // Global dummy guest storage
-// Hardcoded dummy guest - reuse this across all sessions
-const HARDCODED_DUMMY_GUEST: ZenotiGuest = {
-  id: "web-guest-12345", // Use a consistent ID that won't conflict
-  first_name: "Dummy",
-  last_name: "WebGuest", 
-  email: "dummy.webguest@oliathome.com",
-  mobile_phone: {
-    country_id: 1,
-    number: "5551234567"
-  }
-};
-
-let globalDummyGuest: ZenotiGuest | null = HARDCODED_DUMMY_GUEST;
+// Store created guest globally for reuse
+let globalDummyGuest: ZenotiGuest | null = null;
 
 export const useZenotiBooking = () => {
   const [webGuest, setWebGuest] = useState<ZenotiGuest | null>(null);
@@ -52,32 +41,25 @@ export const useZenotiBooking = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Get or create the global dummy guest
-  const getOrCreateDummyGuest = async (centerId: string) => {
-    // Always use the hardcoded dummy guest
+  // Create web guest and save the ID
+  const createWebGuest = async (centerId: string) => {
+    // If we already have a guest, reuse it
     if (globalDummyGuest) {
-      console.log('♻️ Using hardcoded dummy guest:', globalDummyGuest.id);
+      console.log('♻️ Using existing guest:', globalDummyGuest.id);
       setWebGuest(globalDummyGuest);
       return globalDummyGuest;
     }
 
-    // This should never happen since we have a hardcoded guest
-    console.warn('⚠️ Hardcoded dummy guest not available, this should not happen');
-    return null;
-  };
-
-  // Create web guest (only called once)
-  const createWebGuest = async (centerId: string) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      console.log('🆕 Creating new dummy guest...');
+      console.log('🆕 Creating new guest...');
       
       const guestData = {
         personal_info: {
-          first_name: "Dummy",
-          last_name: "WebGuest",
+          first_name: "Web",
+          last_name: "Guest",
           email: `dummy.webguest.${Date.now()}@oliathome.com`,
           mobile_phone: {
             country_id: 1, // US
@@ -103,7 +85,9 @@ export const useZenotiBooking = () => {
       }
 
       const guest: ZenotiGuest = await response.json();
-      console.log('✅ Created dummy guest:', guest.id);
+      console.log('✅ Created new guest with ID:', guest.id);
+      console.log('📋 Full guest response:', guest);
+      console.log('🆔 Guest ID from API:', guest.id);
       
       // Store globally for reuse
       globalDummyGuest = guest;
@@ -111,7 +95,7 @@ export const useZenotiBooking = () => {
       return guest;
 
     } catch (err) {
-      console.error('❌ Error creating web guest:', err);
+      console.error('❌ Error creating guest:', err);
       setError(err instanceof Error ? err.message : 'Failed to create web guest');
       return null;
     } finally {
@@ -251,7 +235,7 @@ export const useZenotiBooking = () => {
       console.log('🚀 Initializing booking flow...');
       
       // Step 1: Get or create dummy guest
-      const guest = await getOrCreateDummyGuest(centerId);
+      const guest = await createWebGuest(centerId);
       if (!guest) return null;
 
       // Step 2: Create service booking
@@ -280,7 +264,6 @@ export const useZenotiBooking = () => {
     isLoading,
     error,
     createWebGuest,
-    getOrCreateDummyGuest,
     createServiceBooking,
     getAvailableSlots,
     initializeBookingFlow
