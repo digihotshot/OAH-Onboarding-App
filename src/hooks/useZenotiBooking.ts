@@ -146,8 +146,6 @@ export const useZenotiBooking = () => {
       }
 
       const guest: ZenotiGuest = await response.json();
-      console.log('🆔 Guest ID from API response:', guest.id);
-      console.log('📋 Full guest object:', guest);
       console.log('✅ Created dummy guest:', guest.id);
       
       // Store globally for reuse
@@ -157,6 +155,72 @@ export const useZenotiBooking = () => {
       // Save guest ID to env file
       await saveGuestIdToEnv(guest.id);
       
+      return guest;
+
+    } catch (err) {
+      console.error('❌ Error creating web guest:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create web guest');
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Create web guest (only called once)
+  const createWebGuest = async (centerId: string) => {
+    if (globalDummyGuest) {
+      console.log('♻️ Using hardcoded dummy guest:', globalDummyGuest.id);
+      setWebGuest(globalDummyGuest);
+      return globalDummyGuest;
+    }
+
+    // This should never happen since we have a hardcoded guest
+    console.warn('⚠️ Hardcoded dummy guest not available, this should not happen');
+    return null;
+  };
+
+  // Create web guest (only called once)
+  const createWebGuest = async (centerId: string) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      console.log('🆕 Creating new dummy guest...');
+      
+      const guestData = {
+        personal_info: {
+          first_name: "Dummy",
+          last_name: "WebGuest",
+          email: `dummy.webguest.${Date.now()}@oliathome.com`,
+          mobile_phone: {
+            country_id: 1, // US
+            number: `555${Math.floor(1000000 + Math.random() * 9000000)}`
+          }
+        },
+        center_id: centerId
+      };
+
+      const response = await fetch(`https://api.zenoti.com/v1/guests`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `apikey ${import.meta.env.VITE_ZENOTI_API_KEY}`
+        },
+        body: JSON.stringify(guestData)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Guest creation failed:', response.status, errorText);
+        throw new Error(`Failed to create guest: ${response.status} - ${errorText}`);
+      }
+
+      const guest: ZenotiGuest = await response.json();
+      console.log('✅ Created dummy guest:', guest.id);
+      
+      // Store globally for reuse
+      globalDummyGuest = guest;
+      setWebGuest(guest);
       return guest;
 
     } catch (err) {
