@@ -136,7 +136,7 @@ export const Box = (): JSX.Element => {
       const appointmentDate = new Date().toISOString().split('T')[0];
       
       console.log('🔄 Initializing booking flow...');
-      const result = await initializeBookingFlow(centerId, firstServiceId.serviceId, appointmentDate);
+      const result = await initializeBookingFlow(centerId, firstServiceId.serviceId, appointmentDate, firstServiceId.duration);
       
       if (result && result.slots) {
         // Extract available dates from slots

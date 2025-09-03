@@ -55,7 +55,8 @@ export const useZenotiBooking = () => {
     centerId: string, 
     guestId: string, 
     serviceId: string,
-    appointmentDate: string
+    appointmentDate: string,
+    serviceDuration: number
   ) => {
     setIsLoading(true);
     setError(null);
@@ -69,7 +70,8 @@ export const useZenotiBooking = () => {
         guests: [{
           id: guestId,
           items: [{
-            service_id: serviceId  // This is the selected service_id
+            service_id: serviceId,  // This is the selected service_id
+            duration: serviceDuration
           }]
         }]
       };
@@ -78,6 +80,7 @@ export const useZenotiBooking = () => {
       console.log('  🏢 Center ID:', centerId);
       console.log('  👤 Guest ID:', guestId);
       console.log('  💉 Service ID:', serviceId);
+      console.log('  ⏱️ Duration:', serviceDuration);
       console.log('  📅 Date:', appointmentDate);
       console.log('  📋 Full payload:', JSON.stringify(bookingData, null, 2));
 
@@ -116,7 +119,8 @@ export const useZenotiBooking = () => {
         center_id: centerId,
         guest_id: guestId,
         requested_services: [{
-          service_id: serviceId
+          service_id: serviceId,
+          duration: serviceDuration
         }]
       };
       
@@ -176,7 +180,8 @@ export const useZenotiBooking = () => {
   const initializeBookingFlow = async (
     centerId: string, 
     serviceId: string, 
-    appointmentDate: string
+    appointmentDate: string,
+    serviceDuration: number
   ) => {
     try {
       console.log('🚀 Initializing booking flow...');
@@ -190,7 +195,7 @@ export const useZenotiBooking = () => {
       }
 
       // Step 2: Create service booking
-      const booking = await createServiceBooking(centerId, guest.id, serviceId, appointmentDate);
+      const booking = await createServiceBooking(centerId, guest.id, serviceId, appointmentDate, serviceDuration);
       if (!booking || !booking.booking_id) {
         console.error('❌ Booking creation failed or returned invalid ID');
         return null;
