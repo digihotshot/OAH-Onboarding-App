@@ -31,8 +31,67 @@ export interface AvailableSlot {
 }
 
 // Global dummy guest storage
-// Store created guest globally for reuse
+// We'll create ONE dummy guest and reuse its ID for all bookings
 let globalDummyGuest: ZenotiGuest | null = null;
+
+// Function to create dummy guest ONCE
+const createDummyGuestOnce = async (centerId: string): Promise<ZenotiGuest | null> => {
+  // If we already have a dummy guest, return it
+  if (globalDummyGuest) {
+    console.log('♻️ Using existing dummy guest ID:', globalDummyGuest.id);
+    return globalDummyGuest;
+  }
+
+  try {
+    console.log('🆕 Creating NEW dummy guest...');
+    
+    const guestData = {
+      personal_info: {
+        first_name: "Dummy",
+        last_name: "Guest",
+        email: `dummy.guest.${Date.now()}@example.com`,
+        mobile_phone: {
+          country_id: 1, // US
+          number: `555${Math.floor(1000000 + Math.random() * 9000000)}`
+        }
+      },
+      center_id: centerId
+    };
+
+    const response = await fetch(`https://api.zenoti.com/v1/guests`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `apikey ${import.meta.env.VITE_ZENOTI_API_KEY}`
+      },
+      body: JSON.stringify(guestData)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Guest creation failed:', response.status, errorText);
+      throw new Error(`Failed to create guest: ${response.status}`);
+    }
+
+    const guest: ZenotiGuest = await response.json();
+    
+    // 🎯 THIS IS THE GUEST_ID WE CREATED!
+    console.log('🎉 ===== DUMMY GUEST CREATED SUCCESSFULLY =====');
+    console.log('🆔 GUEST_ID:', guest.id);
+    console.log('📧 Email:', guest.email);
+    console.log('📱 Phone:', guest.mobile_phone?.number);
+    console.log('🏢 Center ID:', centerId);
+    console.log('===============================================');
+    
+    // Store globally for reuse
+    globalDummyGuest = guest;
+    return guest;
+
+  } catch (err) {
+    console.error('❌ Error creating dummy guest:', err);
+    return null;
+  }
+};
 
 export const useZenotiBooking = () => {
   const [webGuest, setWebGuest] = useState<ZenotiGuest | null>(null);
@@ -43,64 +102,13 @@ export const useZenotiBooking = () => {
 
   // Create web guest and save the ID
   const createWebGuest = async (centerId: string) => {
-    // If we already have a guest, reuse it
-    if (globalDummyGuest) {
-      console.log('♻️ Using existing guest:', globalDummyGuest.id);
-      setWebGuest(globalDummyGuest);
-      return globalDummyGuest;
-    }
-
     setIsLoading(true);
     setError(null);
 
-    try {
-      console.log('🆕 Creating new guest...');
-      
-      const guestData = {
-        personal_info: {
-          first_name: "Web",
-          last_name: "Guest",
-          email: `dummy.webguest.${Date.now()}@oliathome.com`,
-          mobile_phone: {
-            country_id: 1, // US
-            number: `555${Math.floor(1000000 + Math.random() * 9000000)}`
-          }
-        },
-        center_id: centerId
-      };
-
-      const response = await fetch(`https://api.zenoti.com/v1/guests`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `apikey ${import.meta.env.VITE_ZENOTI_API_KEY}`
-        },
-        body: JSON.stringify(guestData)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Guest creation failed:', response.status, errorText);
-        throw new Error(`Failed to create guest: ${response.status} - ${errorText}`);
-      }
-
-      const guest: ZenotiGuest = await response.json();
-      console.log('✅ Created new guest with ID:', guest.id);
-      console.log('📋 Full guest response:', guest);
-      console.log('🆔 Guest ID from API:', guest.id);
-      
-      // Store globally for reuse
-      globalDummyGuest = guest;
-      setWebGuest(guest);
-      return guest;
-
-    } catch (err) {
-      console.error('❌ Error creating guest:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create web guest');
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
+    const guest = await createDummyGuestOnce(centerId);
+    setWebGuest(guest);
+    setIsLoading(false);
+    return guest;
   };
 
   // Create service booking draft
