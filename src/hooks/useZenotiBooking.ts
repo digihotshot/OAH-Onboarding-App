@@ -139,7 +139,8 @@ export const useZenotiBooking = () => {
         guests: [{
           id: guestId,
           items: [{
-            item_id: serviceId,
+            service_id: serviceId,
+            duration: serviceDuration
           }]
         }]
       };
