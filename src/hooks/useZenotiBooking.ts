@@ -135,12 +135,12 @@ export const useZenotiBooking = () => {
       
       const bookingData = {
         center_id: centerId,
-        date: appointmentDate,
         guests: [{
           id: guestId,
           items: [{
-            service_id: serviceId,
-            duration: serviceDuration
+            item: {
+              id: serviceId
+            }
           }]
         }]
       };
