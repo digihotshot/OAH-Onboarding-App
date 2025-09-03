@@ -166,16 +166,30 @@ export const useZenotiBooking = () => {
       }
 
       const bookingResponse: ZenotiBooking = await response.json();
-      console.log('✅ Created booking draft:', bookingResponse.booking_id);
+      console.log('✅ API Response:', JSON.stringify(bookingResponse, null, 2));
+      
+      // Extract booking ID from nested response structure
+      const bookingId = bookingResponse.booking?.id;
+      console.log('✅ Extracted booking ID:', bookingId);
       
       // Validate that we received a valid booking ID
-      if (!bookingResponse.booking_id || typeof bookingResponse.booking_id !== 'string' || bookingResponse.booking_id.trim() === '') {
-        console.error('❌ Invalid booking ID received:', bookingResponse.booking_id);
+      if (!bookingId || typeof bookingId !== 'string' || bookingId.trim() === '') {
+        console.error('❌ Invalid booking ID received:', bookingId);
         throw new Error('Invalid booking ID received from Zenoti API');
       }
       
-      setBooking(bookingResponse);
-      return bookingResponse;
+      // Create our booking object with the extracted ID
+      const booking: ZenotiBooking = {
+        booking_id: bookingId,
+        center_id: centerId,
+        guest_id: guestId,
+        requested_services: [{
+          service_id: serviceId
+        }]
+      };
+      
+      setBooking(booking);
+      return booking;
 
     } catch (err) {
       console.error('❌ Error creating service booking:', err);
