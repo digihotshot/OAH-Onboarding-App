@@ -125,7 +125,6 @@ export const useZenotiBooking = () => {
     centerId: string, 
     guestId: string, 
     serviceId: string,
-    serviceDuration: number,
     appointmentDate: string
   ) => {
     setIsLoading(true);
@@ -136,14 +135,11 @@ export const useZenotiBooking = () => {
       
       const bookingData = {
         center_id: centerId,
-        start_date: appointmentDate,
+        date: appointmentDate,
         guests: [{
           id: guestId,
           items: [{
-            item: {
-              id: serviceId
-            },
-            duration: serviceDuration
+            item_id: serviceId
           }]
         }]
       };
@@ -154,7 +150,7 @@ export const useZenotiBooking = () => {
         method: 'POST',
         headers: {
           'accept': 'application/json',
-          'Content-Type': 'application/json',
+          'content-type': 'application/json',
           'Authorization': `apikey ${import.meta.env.VITE_ZENOTI_API_KEY}`
         },
         body: JSON.stringify(bookingData)
@@ -245,7 +241,6 @@ export const useZenotiBooking = () => {
   const initializeBookingFlow = async (
     centerId: string, 
     serviceId: string, 
-    serviceDuration: number,
     appointmentDate: string
   ) => {
     try {
@@ -256,7 +251,7 @@ export const useZenotiBooking = () => {
       if (!guest) return null;
 
       // Step 2: Create service booking
-      const booking = await createServiceBooking(centerId, guest.id, serviceId, serviceDuration, appointmentDate);
+      const booking = await createServiceBooking(centerId, guest.id, serviceId, appointmentDate);
       if (!booking || !booking.booking_id) {
         console.error('❌ Booking creation failed or returned invalid ID');
         return null;
