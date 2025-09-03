@@ -146,6 +146,8 @@ export const useZenotiBooking = () => {
       }
 
       const guest: ZenotiGuest = await response.json();
+      console.log('🆔 Guest ID from API response:', guest.id);
+      console.log('📋 Full guest object:', guest);
       console.log('✅ Created dummy guest:', guest.id);
       
       // Store globally for reuse
