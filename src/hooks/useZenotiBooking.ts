@@ -32,7 +32,16 @@ export interface AvailableSlot {
 
 // Global dummy guest storage
 // We'll create ONE dummy guest and reuse its ID for all bookings
-let globalDummyGuest: ZenotiGuest | null = null;
+let globalDummyGuest: ZenotiGuest | null = {
+  id: import.meta.env.VITE_ZENOTI_GUEST_ID || '7ab2f13d-dc76-4390-b54e-baa055f8a0fc',
+  first_name: 'Dummy',
+  last_name: 'Guest',
+  email: 'dummy.guest@example.com',
+  mobile_phone: {
+    country_id: 1,
+    number: '5551234567'
+  }
+};
 
 // Function to create dummy guest ONCE
 const createDummyGuestOnce = async (centerId: string): Promise<ZenotiGuest | null> => {
