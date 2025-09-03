@@ -31,19 +31,7 @@ export interface AvailableSlot {
 }
 
 // Global dummy guest storage
-// Hardcoded dummy guest - reuse this across all sessions
-const HARDCODED_DUMMY_GUEST: ZenotiGuest = {
-  id: "web-guest-12345", // Use a consistent ID that won't conflict
-  first_name: "Dummy",
-  last_name: "WebGuest", 
-  email: "dummy.webguest@oliathome.com",
-  mobile_phone: {
-    country_id: 1,
-    number: "5551234567"
-  }
-};
-
-let globalDummyGuest: ZenotiGuest | null = HARDCODED_DUMMY_GUEST;
+let globalDummyGuest: ZenotiGuest | null = null;
 
 export const useZenotiBooking = () => {
   const [webGuest, setWebGuest] = useState<ZenotiGuest | null>(null);
@@ -54,7 +42,132 @@ export const useZenotiBooking = () => {
 
   // Get or create the global dummy guest
   const getOrCreateDummyGuest = async (centerId: string) => {
-    // Always use the hardcoded dummy guest
+    // Check if we have a guest ID in env
+    const existingGuestId = import.meta.env.VITE_ZENOTI_GUEST_ID;
+    
+    if (existingGuestId && globalDummyGuest?.id === existingGuestId) {
+      console.log('♻️ Using existing dummy guest:', globalDummyGuest.id);
+      setWebGuest(globalDummyGuest);
+      return globalDummyGuest;
+    }
+    
+    // If we have a guest ID in env but no global guest, reconstruct it
+    if (existingGuestId) {
+      const reconstructedGuest: ZenotiGuest = {
+        id: existingGuestId,
+        first_name: "Dummy",
+        last_name: "WebGuest",
+        email: "dummy.webguest@oliathome.com",
+        mobile_phone: {
+          country_id: 1,
+          number: "5551234567"
+        }
+      };
+      globalDummyGuest = reconstructedGuest;
+      setWebGuest(reconstructedGuest);
+      console.log('♻️ Reconstructed guest from env:', existingGuestId);
+      return reconstructedGuest;
+    }
+    
+    // Create new guest if none exists
+    return await createWebGuest(centerId);
+  };
+
+  // Save guest ID to env file
+  const saveGuestIdToEnv = async (guestId: string) => {
+    try {
+      // Read current .env file
+      const response = await fetch('/.env');
+      let envContent = '';
+      
+      if (response.ok) {
+        envContent = await response.text();
+      }
+      
+      // Check if VITE_ZENOTI_GUEST_ID already exists
+      const lines = envContent.split('\n');
+      const existingLineIndex = lines.findIndex(line => line.startsWith('VITE_ZENOTI_GUEST_ID='));
+      
+      if (existingLineIndex !== -1) {
+        // Update existing line
+        lines[existingLineIndex] = `VITE_ZENOTI_GUEST_ID=${guestId}`;
+      } else {
+        // Add new line
+        lines.push(`VITE_ZENOTI_GUEST_ID=${guestId}`);
+      }
+      
+      // Write back to .env file
+      const newEnvContent = lines.join('\n');
+      
+      // Note: In a real environment, this would need server-side handling
+      // For now, we'll just log the instruction
+      console.log('💾 Guest ID to save to .env:', guestId);
+      console.log('📝 Updated .env content would be:', newEnvContent);
+      
+    } catch (err) {
+      console.error('❌ Error saving guest ID to env:', err);
+    }
+  };
+
+  // Create web guest (only called once)
+  const createWebGuest = async (centerId: string) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      console.log('🆕 Creating new dummy guest...');
+      
+      const guestData = {
+        personal_info: {
+          first_name: "Dummy",
+          last_name: "WebGuest",
+          email: `dummy.webguest.${Date.now()}@oliathome.com`,
+          mobile_phone: {
+            country_id: 1, // US
+            number: `555${Math.floor(1000000 + Math.random() * 9000000)}`
+          }
+        },
+        center_id: centerId
+      };
+
+      const response = await fetch(`https://api.zenoti.com/v1/guests`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `apikey ${import.meta.env.VITE_ZENOTI_API_KEY}`
+        },
+        body: JSON.stringify(guestData)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Guest creation failed:', response.status, errorText);
+        throw new Error(`Failed to create guest: ${response.status} - ${errorText}`);
+      }
+
+      const guest: ZenotiGuest = await response.json();
+      console.log('✅ Created dummy guest:', guest.id);
+      
+      // Store globally for reuse
+      globalDummyGuest = guest;
+      setWebGuest(guest);
+      
+      // Save guest ID to env file
+      await saveGuestIdToEnv(guest.id);
+      
+      return guest;
+
+    } catch (err) {
+      console.error('❌ Error creating web guest:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create web guest');
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Create web guest (only called once)
+  const createWebGuest = async (centerId: string) => {
     if (globalDummyGuest) {
       console.log('♻️ Using hardcoded dummy guest:', globalDummyGuest.id);
       setWebGuest(globalDummyGuest);
