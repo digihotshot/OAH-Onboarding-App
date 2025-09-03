@@ -139,12 +139,17 @@ export const useZenotiBooking = () => {
         guests: [{
           id: guestId,
           items: [{
-            item_id: serviceId
+            item_id: serviceId  // This is the selected service_id
           }]
         }]
       };
 
-      console.log('📤 Booking payload:', JSON.stringify(bookingData, null, 2));
+      console.log('📤 Booking payload with IDs:');
+      console.log('  🏢 Center ID:', centerId);
+      console.log('  👤 Guest ID:', guestId);
+      console.log('  💉 Service ID:', serviceId);
+      console.log('  📅 Date:', appointmentDate);
+      console.log('  📋 Full payload:', JSON.stringify(bookingData, null, 2));
 
       const response = await fetch(`https://api.zenoti.com/v1/bookings?is_double_booking_enabled=true`, {
         method: 'POST',
