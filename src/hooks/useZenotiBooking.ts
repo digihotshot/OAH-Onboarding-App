@@ -43,82 +43,12 @@ let globalDummyGuest: ZenotiGuest | null = {
   }
 };
 
-// Function to create dummy guest ONCE
-const createDummyGuestOnce = async (centerId: string): Promise<ZenotiGuest | null> => {
-  // If we already have a dummy guest, return it
-  if (globalDummyGuest) {
-    console.log('♻️ Using existing dummy guest ID:', globalDummyGuest.id);
-    return globalDummyGuest;
-  }
-
-  try {
-    console.log('🆕 Creating NEW dummy guest...');
-    
-    const guestData = {
-      personal_info: {
-        first_name: "Dummy",
-        last_name: "Guest",
-        email: `dummy.guest.${Date.now()}@example.com`,
-        mobile_phone: {
-          country_id: 1, // US
-          number: `555${Math.floor(1000000 + Math.random() * 9000000)}`
-        }
-      },
-      center_id: centerId
-    };
-
-    const response = await fetch(`https://api.zenoti.com/v1/guests`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `apikey ${import.meta.env.VITE_ZENOTI_API_KEY}`
-      },
-      body: JSON.stringify(guestData)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Guest creation failed:', response.status, errorText);
-      throw new Error(`Failed to create guest: ${response.status}`);
-    }
-
-    const guest: ZenotiGuest = await response.json();
-    
-    // 🎯 THIS IS THE GUEST_ID WE CREATED!
-    console.log('🎉 ===== DUMMY GUEST CREATED SUCCESSFULLY =====');
-    console.log('🆔 GUEST_ID:', guest.id);
-    console.log('📧 Email:', guest.email);
-    console.log('📱 Phone:', guest.mobile_phone?.number);
-    console.log('🏢 Center ID:', centerId);
-    console.log('===============================================');
-    
-    // Store globally for reuse
-    globalDummyGuest = guest;
-    return guest;
-
-  } catch (err) {
-    console.error('❌ Error creating dummy guest:', err);
-    return null;
-  }
-};
-
 export const useZenotiBooking = () => {
   const [webGuest, setWebGuest] = useState<ZenotiGuest | null>(null);
   const [booking, setBooking] = useState<ZenotiBooking | null>(null);
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Create web guest and save the ID
-  const createWebGuest = async (centerId: string) => {
-    setIsLoading(true);
-    setError(null);
-
-    const guest = await createDummyGuestOnce(centerId);
-    setWebGuest(guest);
-    setIsLoading(false);
-    return guest;
-  };
 
   // Create service booking draft
   const createServiceBooking = async (
@@ -251,9 +181,13 @@ export const useZenotiBooking = () => {
     try {
       console.log('🚀 Initializing booking flow...');
       
-      // Step 1: Get or create dummy guest
-      const guest = await createWebGuest(centerId);
-      if (!guest) return null;
+      // Step 1: Use existing dummy guest
+      const guest = globalDummyGuest;
+      if (!guest) {
+        console.error('❌ No dummy guest available');
+        setError('No guest available for booking');
+        return null;
+      }
 
       // Step 2: Create service booking
       const booking = await createServiceBooking(centerId, guest.id, serviceId, appointmentDate);
@@ -280,7 +214,6 @@ export const useZenotiBooking = () => {
     availableSlots,
     isLoading,
     error,
-    createWebGuest,
     createServiceBooking,
     getAvailableSlots,
     initializeBookingFlow
