@@ -143,9 +143,8 @@ export const Box = (): JSX.Element => {
         const availableDatesFromFutureDays = result.futureDays
           .filter(day => day.IsAvailable)
           .map(day => {
-            // Parse the ISO date string and format it as YYYY-MM-DD in local timezone
-            const date = new Date(day.Day);
-            return date.toISOString().split('T')[0];
+            // Extract date directly from ISO string to avoid timezone conversion
+            return day.Day.split('T')[0];
           });
         setAvailableDates(availableDatesFromFutureDays);
         console.log('📅 Available dates from future_days:', availableDatesFromFutureDays);
