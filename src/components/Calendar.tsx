@@ -37,6 +37,7 @@ export const Calendar: React.FC<CalendarProps> = ({
 
   const isDateAvailable = (date: Date) => {
     const dateString = formatDateString(date);
+    console.log('🔍 Checking if date is available:', dateString, 'Available dates:', availableDates);
     return availableDates.includes(dateString);
   };
 

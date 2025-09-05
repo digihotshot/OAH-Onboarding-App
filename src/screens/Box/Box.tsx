@@ -144,25 +144,39 @@ export const Box = (): JSX.Element => {
       const result = await initializeBookingFlow(centerId, firstServiceId.serviceId, appointmentDate);
       
       if (result && result.slots && result.futureDays) {
-        // Use future_days data for available dates
+        console.log('📅 Processing booking result:', result);
+        console.log('📅 Future days from API:', result.futureDays);
+        
+        // Process future_days data for available dates
         const availableDatesFromFutureDays = result.futureDays
           .filter(day => day.IsAvailable)
           .map(day => {
-            // Extract date directly from ISO string to avoid timezone conversion
-            return day.Day.split('T')[0];
+            // Create date in local timezone to avoid UTC conversion issues
+            const isoDate = day.Day.split('T')[0]; // Get YYYY-MM-DD part
+            const [year, month, dayNum] = isoDate.split('-').map(Number);
+            const localDate = new Date(year, month - 1, dayNum); // month is 0-indexed
+            return localDate.toISOString().split('T')[0];
           });
         
-        // Include today's date if there are slots available for today
-        const todaySlots = result.slots.filter(slot => slot.Available && slot.Time.startsWith(appointmentDate));
-        const availableDates = [...availableDatesFromFutureDays];
+        console.log('📅 Processed future days:', availableDatesFromFutureDays);
         
-        // Add today's date if it has available slots and isn't already in future_days
-        if (todaySlots.length > 0 && !availableDates.includes(appointmentDate)) {
-          availableDates.unshift(appointmentDate); // Add today at the beginning
+        // Check if today has available slots
+        const todaySlots = result.slots.filter(slot => slot.Available && slot.Time.startsWith(appointmentDate));
+        console.log('📅 Today slots count:', todaySlots.length, 'for date:', appointmentDate);
+        
+        // Combine today's date (if has slots) with future available dates
+        const availableDates = [];
+        
+        // Add today if it has slots
+        if (todaySlots.length > 0) {
+          availableDates.push(appointmentDate);
         }
         
+        // Add future days
+        availableDates.push(...availableDatesFromFutureDays);
+        
+        console.log('📅 Final available dates:', availableDates);
         setAvailableDates(availableDates);
-        console.log('📅 Available dates from future_days:', availableDatesFromFutureDays);
       }
     }
   };
