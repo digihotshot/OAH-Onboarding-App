@@ -179,7 +179,7 @@ export const useZenotiBooking = () => {
       console.log('✅ API Response:', JSON.stringify(bookingResponse, null, 2));
       
       // Extract booking ID from response
-      const bookingId = bookingResponse.booking_id;
+      const bookingId = bookingResponse.booking?.id;
       console.log('✅ Extracted booking ID:', bookingId);
       
       // Validate that we received a valid booking ID
