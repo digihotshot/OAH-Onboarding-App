@@ -133,7 +133,12 @@ export const Box = (): JSX.Element => {
     const centerId = selectedProvider?.provider_id;
     
     if (centerId && firstServiceId) {
-      const appointmentDate = new Date().toISOString().split('T')[0];
+      // Get current date in local timezone (IST)
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const appointmentDate = `${year}-${month}-${day}`;
       
       console.log('🔄 Initializing booking flow...');
       const result = await initializeBookingFlow(centerId, firstServiceId.serviceId, appointmentDate);
