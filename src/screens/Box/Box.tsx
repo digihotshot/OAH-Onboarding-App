@@ -151,7 +151,17 @@ export const Box = (): JSX.Element => {
             // Extract date directly from ISO string to avoid timezone conversion
             return day.Day.split('T')[0];
           });
-        setAvailableDates(availableDatesFromFutureDays);
+        
+        // Include today's date if there are slots available for today
+        const todaySlots = result.slots.filter(slot => slot.Available && slot.Time.startsWith(appointmentDate));
+        const availableDates = [...availableDatesFromFutureDays];
+        
+        // Add today's date if it has available slots and isn't already in future_days
+        if (todaySlots.length > 0 && !availableDates.includes(appointmentDate)) {
+          availableDates.unshift(appointmentDate); // Add today at the beginning
+        }
+        
+        setAvailableDates(availableDates);
         console.log('📅 Available dates from future_days:', availableDatesFromFutureDays);
       }
     }
