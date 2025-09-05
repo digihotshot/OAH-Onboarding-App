@@ -136,11 +136,13 @@ export const Box = (): JSX.Element => {
       const appointmentDate = new Date().toISOString().split('T')[0];
       
       console.log('🔄 Initializing booking flow...');
-      const result = await initializeBookingFlow(centerId, firstServiceId.serviceId, firstServiceId.duration, appointmentDate);
+      const result = await initializeBookingFlow(centerId, firstServiceId.serviceId, appointmentDate);
       
       if (result && result.slots) {
-        // Extract available dates from slots
-        const dates = result.slots.map((slot: any) => slot.date);
+        // Extract available dates from slots (convert Time to date)
+        const dates = result.slots
+          .filter(slot => slot.Available)
+          .map((slot: any) => slot.Time.split('T')[0]);
         const uniqueDates = [...new Set(dates)];
         setAvailableDates(uniqueDates);
         console.log('📅 Available dates:', uniqueDates);
@@ -154,7 +156,13 @@ export const Box = (): JSX.Element => {
     
     // Filter time slots for selected date
     const dateString = date.toISOString().split('T')[0];
-    const slotsForDate = availableSlots.filter(slot => slot.date === dateString);
+    const slotsForDate = availableSlots
+      .filter(slot => slot.Available && slot.Time.startsWith(dateString))
+      .map(slot => ({
+        time: slot.Time.split('T')[1].substring(0, 5), // Extract HH:MM from ISO string
+        available: slot.Available,
+        therapist_name: undefined
+      }));
     setTimeSlots(slotsForDate);
   };
 

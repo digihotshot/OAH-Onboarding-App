@@ -23,11 +23,24 @@ export interface ZenotiBooking {
 }
 
 export interface AvailableSlot {
-  date: string;
-  time: string;
-  therapist_id: string;
-  therapist_name: string;
-  available: boolean;
+  Time: string;
+  Warnings: any;
+  Priority: number;
+  Available: boolean;
+  SalePrice: any;
+}
+
+export interface FutureDay {
+  Day: string;
+  IsAvailable: boolean;
+  HolidayType: any;
+}
+
+export interface SlotsResponse {
+  slots: AvailableSlot[];
+  future_days: FutureDay[];
+  next_available_day: string;
+  Error: any;
 }
 
 // Global dummy guest storage
@@ -125,7 +138,6 @@ export const useZenotiBooking = () => {
     centerId: string, 
     guestId: string, 
     serviceId: string,
-    serviceDuration: number,
     appointmentDate: string
   ) => {
     setIsLoading(true);
@@ -136,21 +148,18 @@ export const useZenotiBooking = () => {
       
       const bookingData = {
         center_id: centerId,
-        start_date: appointmentDate,
+        date: appointmentDate,
         guests: [{
           id: guestId,
           items: [{
-            item: {
-              id: serviceId
-            },
-            duration: serviceDuration
+            item: { id: serviceId }
           }]
         }]
       };
 
       console.log('📤 Booking payload:', JSON.stringify(bookingData, null, 2));
 
-      const response = await fetch(`https://api.zenoti.com/v1/bookings?is_double_booking_enabled=true`, {
+      const response = await fetch(`https://api.zenoti.com/v1/bookings?is_double_booking_enabled=false`, {
         method: 'POST',
         headers: {
           'accept': 'application/json',
@@ -169,8 +178,8 @@ export const useZenotiBooking = () => {
       const bookingResponse: ZenotiBooking = await response.json();
       console.log('✅ API Response:', JSON.stringify(bookingResponse, null, 2));
       
-      // Extract booking ID from nested response structure
-      const bookingId = bookingResponse.booking?.id;
+      // Extract booking ID from response
+      const bookingId = bookingResponse.booking_id;
       console.log('✅ Extracted booking ID:', bookingId);
       
       // Validate that we received a valid booking ID
@@ -202,14 +211,14 @@ export const useZenotiBooking = () => {
   };
 
   // Retrieve available slots
-  const getAvailableSlots = async (bookingId: string, startDate: string, endDate: string) => {
+  const getAvailableSlots = async (bookingId: string) => {
     setIsLoading(true);
     setError(null);
 
     try {
       console.log('🕐 Fetching slots for booking:', bookingId);
       
-      const url = `https://api.zenoti.com/v1/bookings/${bookingId}/slots?start_date=${startDate}&end_date=${endDate}`;
+      const url = `https://api.zenoti.com/v1/bookings/${bookingId}/slots?check_future_day_availability=true`;
       
       const response = await fetch(url, {
         method: 'GET',
@@ -224,11 +233,12 @@ export const useZenotiBooking = () => {
         throw new Error(`Failed to get available slots: ${response.status} - ${errorText}`);
       }
 
-      const slotsData = await response.json();
-      console.log('✅ Retrieved slots:', slotsData.slots?.length || 0, 'slots found');
+      const slotsData: SlotsResponse = await response.json();
+      console.log('✅ Retrieved slots response:', slotsData);
+      console.log('✅ Available slots:', slotsData.slots?.length || 0, 'slots found');
+      console.log('✅ Future days:', slotsData.future_days?.length || 0, 'days found');
       
-      // Transform the response to our format
-      const slots: AvailableSlot[] = slotsData.slots || [];
+      const slots = slotsData.slots || [];
       setAvailableSlots(slots);
       return slots;
 
@@ -245,25 +255,28 @@ export const useZenotiBooking = () => {
   const initializeBookingFlow = async (
     centerId: string, 
     serviceId: string, 
-    serviceDuration: number,
     appointmentDate: string
   ) => {
     try {
       console.log('🚀 Initializing booking flow...');
       
-      // Step 1: Get or create dummy guest
-      const guest = await createWebGuest(centerId);
-      if (!guest) return null;
+      // Step 1: Use existing dummy guest
+      const guest = globalDummyGuest;
+      if (!guest) {
+        console.error('❌ No dummy guest available');
+        setError('No guest available for booking');
+        return null;
+      }
 
       // Step 2: Create service booking
-      const booking = await createServiceBooking(centerId, guest.id, serviceId, serviceDuration, appointmentDate);
+      const booking = await createServiceBooking(centerId, guest.id, serviceId, appointmentDate);
       if (!booking || !booking.booking_id) {
         console.error('❌ Booking creation failed or returned invalid ID');
         return null;
       }
 
       // Step 3: Get available slots
-      const slots = await getAvailableSlots(booking.booking_id, appointmentDate, appointmentDate);
+      const slots = await getAvailableSlots(booking.booking_id);
       
       console.log('✅ Booking flow completed successfully');
       return { guest, booking, slots };
@@ -275,12 +288,10 @@ export const useZenotiBooking = () => {
   };
 
   return {
-    webGuest,
     booking,
     availableSlots,
     isLoading,
     error,
-    createWebGuest,
     createServiceBooking,
     getAvailableSlots,
     initializeBookingFlow
