@@ -144,9 +144,7 @@ export const useZenotiBooking = () => {
       console.log('✅ Future days:', slotsData.future_days?.length || 0, 'days found');
       
       const slots = slotsData.slots || [];
-      const futureDaysData = slotsData.future_days || [];
       setAvailableSlots(slots);
-      setFutureDays(futureDaysData);
       return slots;
 
     } catch (err) {
@@ -197,6 +195,7 @@ export const useZenotiBooking = () => {
   return {
     booking,
     availableSlots,
+    futureDays,
     isLoading,
     error,
     createServiceBooking,

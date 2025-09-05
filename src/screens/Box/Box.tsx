@@ -139,13 +139,12 @@ export const Box = (): JSX.Element => {
       const result = await initializeBookingFlow(centerId, firstServiceId.serviceId, appointmentDate);
       
       if (result && result.slots) {
-        // Extract available dates from slots (convert Time to date)
-        const dates = result.slots
-          .filter(slot => slot.Available)
-          .map((slot: any) => slot.Time.split('T')[0]);
-        const uniqueDates = [...new Set(dates)];
-        setAvailableDates(uniqueDates);
-        console.log('📅 Available dates:', uniqueDates);
+        // Use future_days data for available dates
+        const availableDatesFromFutureDays = futureDays
+          .filter(day => day.IsAvailable)
+          .map(day => day.Day.split('T')[0]);
+        setAvailableDates(availableDatesFromFutureDays);
+        console.log('📅 Available dates from future_days:', availableDatesFromFutureDays);
       }
     }
   };
