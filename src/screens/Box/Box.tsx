@@ -151,29 +151,17 @@ export const Box = (): JSX.Element => {
         const availableDatesFromFutureDays = result.futureDays
           .filter(day => day.IsAvailable)
           .map(day => {
-            // Create date in local timezone to avoid UTC conversion issues
-            const isoDate = day.Day.split('T')[0]; // Get YYYY-MM-DD part
-            const [year, month, dayNum] = isoDate.split('-').map(Number);
-            const localDate = new Date(year, month - 1, dayNum); // month is 0-indexed
-            return localDate.toISOString().split('T')[0];
+            // Extract date part directly without timezone conversion
+            return day.Day.split('T')[0];
           });
         
         console.log('📅 Processed future days:', availableDatesFromFutureDays);
         
-        // Check if today has available slots
-        const todaySlots = result.slots.filter(slot => slot.Available && slot.Time.startsWith(appointmentDate));
-        console.log('📅 Today slots count:', todaySlots.length, 'for date:', appointmentDate);
+        // Get all available dates from future_days (this includes today if available)
+        console.log('📅 Available dates from future_days:', availableDatesFromFutureDays);
         
-        // Combine today's date (if has slots) with future available dates
-        const availableDates = [];
-        
-        // Add today if it has slots
-        if (todaySlots.length > 0) {
-          availableDates.push(appointmentDate);
-        }
-        
-        // Add future days
-        availableDates.push(...availableDatesFromFutureDays);
+        // Use the available dates from future_days as the source of truth
+        const availableDates = [...availableDatesFromFutureDays];
         
         console.log('📅 Final available dates:', availableDates);
         setAvailableDates(availableDates);
