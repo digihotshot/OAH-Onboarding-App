@@ -138,9 +138,9 @@ export const Box = (): JSX.Element => {
       console.log('🔄 Initializing booking flow...');
       const result = await initializeBookingFlow(centerId, firstServiceId.serviceId, appointmentDate);
       
-      if (result && result.slots) {
+      if (result && result.slots && result.futureDays) {
         // Use future_days data for available dates
-        const availableDatesFromFutureDays = futureDays
+        const availableDatesFromFutureDays = result.futureDays
           .filter(day => day.IsAvailable)
           .map(day => day.Day.split('T')[0]);
         setAvailableDates(availableDatesFromFutureDays);

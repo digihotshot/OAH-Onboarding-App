@@ -148,12 +148,12 @@ export const useZenotiBooking = () => {
       const futureDaysData = slotsData.future_days || [];
       setAvailableSlots(slots);
       setFutureDays(futureDaysData);
-      return slots;
+      return slotsData;
 
     } catch (err) {
       console.error('❌ Error getting available slots:', err);
       setError(err instanceof Error ? err.message : 'Failed to get available slots');
-      return [];
+      return { slots: [], future_days: [], next_available_day: '', Error: null };
     } finally {
       setIsLoading(false);
     }
@@ -184,10 +184,10 @@ export const useZenotiBooking = () => {
       }
 
       // Step 2: Get available slots
-      const slots = await getAvailableSlots(booking.booking_id);
+      const slotsResponse = await getAvailableSlots(booking.booking_id);
       
       console.log('✅ Booking flow completed successfully');
-      return { booking, slots };
+      return { booking, slots: slotsResponse.slots, futureDays: slotsResponse.future_days };
     } catch (err) {
       console.error('❌ Error in booking flow:', err);
       setError(err instanceof Error ? err.message : 'Failed to initialize booking flow');
