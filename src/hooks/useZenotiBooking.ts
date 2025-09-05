@@ -35,6 +35,7 @@ export interface SlotsResponse {
 export const useZenotiBooking = () => {
   const [booking, setBooking] = useState<ZenotiBooking | null>(null);
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
+  const [futureDays, setFutureDays] = useState<FutureDay[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -144,7 +145,9 @@ export const useZenotiBooking = () => {
       console.log('✅ Future days:', slotsData.future_days?.length || 0, 'days found');
       
       const slots = slotsData.slots || [];
+      const futureDaysData = slotsData.future_days || [];
       setAvailableSlots(slots);
+      setFutureDays(futureDaysData);
       return slots;
 
     } catch (err) {
