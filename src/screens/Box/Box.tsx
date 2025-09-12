@@ -658,13 +658,22 @@ export const Box = (): JSX.Element => {
                 />
 
                 {/* Time Slots */}
-                <TimeSlots
-                  selectedDate={selectedDate}
-                  timeSlots={timeSlots}
-                  selectedTime={selectedTime}
-                  onTimeSelect={handleTimeSelect}
-                  isLoading={bookingLoading}
-                />
+                {selectedDate ? (
+                  <TimeSlots
+                    selectedDate={selectedDate}
+                    timeSlots={timeSlots}
+                    selectedTime={selectedTime}
+                    onTimeSelect={handleTimeSelect}
+                    isLoading={bookingLoading}
+                  />
+                ) : (
+                  <div className="bg-white rounded-lg border border-gray-200 p-6">
+                    <div className="text-center py-8">
+                      <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500">Select a date to view available times</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons */}

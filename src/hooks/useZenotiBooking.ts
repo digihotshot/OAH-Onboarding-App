@@ -42,7 +42,6 @@ export const useZenotiBooking = () => {
   // Create service booking draft
   const createServiceBooking = async (
     centerId: string, 
-    guestId: string, 
     serviceId: string,
     appointmentDate: string
   ) => {
@@ -50,13 +49,13 @@ export const useZenotiBooking = () => {
     setError(null);
 
     try {
-      console.log('📝 Creating booking draft for guest:', guestId);
+      console.log('📝 Creating booking draft for center:', centerId);
       
       const bookingData = {
         center_id: centerId,
         date: appointmentDate,
         guests: [{
-          id: guestId,
+          id: "",
           items: [{
             item: { id: serviceId }
           }]
@@ -98,7 +97,7 @@ export const useZenotiBooking = () => {
       const booking: ZenotiBooking = {
         booking_id: bookingId,
         center_id: centerId,
-        guest_id: guestId,
+        guest_id: "",
         requested_services: [{
           service_id: serviceId
         }]
@@ -168,16 +167,8 @@ export const useZenotiBooking = () => {
     try {
       console.log('🚀 Initializing booking flow...');
       
-      // Use guest ID from environment
-      const guestId = import.meta.env.VITE_ZENOTI_GUEST_ID;
-      if (!guestId) {
-        console.error('❌ No guest ID found in environment');
-        setError('No guest ID configured');
-        return null;
-      }
-
       // Step 1: Create service booking
-      const booking = await createServiceBooking(centerId, guestId, serviceId, appointmentDate);
+      const booking = await createServiceBooking(centerId, serviceId, appointmentDate);
       if (!booking || !booking.booking_id) {
         console.error('❌ Booking creation failed or returned invalid ID');
         return null;
