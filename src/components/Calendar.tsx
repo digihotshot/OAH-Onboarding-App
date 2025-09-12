@@ -49,7 +49,15 @@ export const Calendar: React.FC<CalendarProps> = ({
   const isDateInPast = (date: Date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
     return date < today;
+  };
+
+  const isDateWithin3Months = (date: Date) => {
+    const today = new Date();
+    const threeMonthsFromNow = new Date();
+    threeMonthsFromNow.setMonth(today.getMonth() + 3);
+    return date <= threeMonthsFromNow;
   };
 
   const handlePrevMonth = () => {
@@ -63,7 +71,7 @@ export const Calendar: React.FC<CalendarProps> = ({
   };
 
   const handleDateClick = (date: Date) => {
-    if (!isDateInPast(date) && isDateAvailable(date)) {
+    if (!isDateInPast(date) && isDateAvailable(date) && isDateWithin3Months(date)) {
       onDateSelect(date);
     }
   };
@@ -86,17 +94,18 @@ export const Calendar: React.FC<CalendarProps> = ({
       const isAvailable = isDateAvailable(date);
       const isSelected = isDateSelected(date);
       const isPast = isDateInPast(date);
+      const isWithin3Months = isDateWithin3Months(date);
 
       days.push(
         <button
           key={day}
           onClick={() => handleDateClick(date)}
-          disabled={isPast || !isAvailable}
+          disabled={isPast || !isAvailable || !isWithin3Months}
           className={`
             h-12 w-12 rounded-full text-sm font-medium transition-colors relative
             ${isSelected 
               ? 'bg-[#C2A88F] text-white' 
-              : isAvailable && !isPast
+              : isAvailable && !isPast && isWithin3Months
                 ? 'hover:bg-gray-100 text-gray-900'
                 : isPast
                   ? 'text-gray-300 cursor-not-allowed'
@@ -105,7 +114,7 @@ export const Calendar: React.FC<CalendarProps> = ({
           `}
         >
           {day}
-          {isAvailable && !isPast && !isSelected && (
+          {isAvailable && !isPast && !isSelected && isWithin3Months && (
             <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-green-500 rounded-full"></div>
           )}
         </button>

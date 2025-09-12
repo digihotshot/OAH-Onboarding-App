@@ -133,7 +133,7 @@ export const Box = (): JSX.Element => {
     const firstServiceId = selectedServiceIds[0];
     
     if (firstServiceId) {
-      // Get current date in local timezone (IST)
+      // Get current date in local timezone
       const today = new Date();
       const year = today.getFullYear();
       const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -156,7 +156,7 @@ export const Box = (): JSX.Element => {
 
     console.log(`🏢 Fetching slots from ${availableProviderObjects.length} centers...`);
 
-    // Fetch slots from all centers
+    // Fetch slots from all centers for next 3 months
     for (const provider of availableProviderObjects) {
       try {
         console.log(`🔄 Fetching slots for center: ${provider.name} (${provider.provider_id})`);
@@ -170,10 +170,19 @@ export const Box = (): JSX.Element => {
             futureDays: result.futureDays
           };
 
-          // Collect all available dates from this center
+          // Get current date and 3 months from now
+          const today = new Date();
+          const threeMonthsFromNow = new Date();
+          threeMonthsFromNow.setMonth(today.getMonth() + 3);
+          
+          // Collect available dates from this center (only future dates within 3 months)
           const availableDatesFromCenter = result.futureDays
             .filter(day => day.IsAvailable)
-            .map(day => day.Day.split('T')[0]);
+            .map(day => day.Day.split('T')[0])
+            .filter(dateString => {
+              const date = new Date(dateString);
+              return date >= today && date <= threeMonthsFromNow;
+            });
           
           availableDatesFromCenter.forEach(date => allDatesSet.add(date));
           
