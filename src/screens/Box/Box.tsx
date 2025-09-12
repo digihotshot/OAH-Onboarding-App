@@ -1,5 +1,7 @@
+                       <>
                         <div className="h-6 bg-gray-200 rounded w-32"></div>
                         <div className="h-5 w-5 bg-gray-200 rounded"></div>
+                        </>
                       </div>
                     </div>
                   ))}
