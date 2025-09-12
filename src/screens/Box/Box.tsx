@@ -19,9 +19,12 @@ export const Box = (): JSX.Element => {
   const [selectedServices, setSelectedServices] = React.useState<Record<string, {serviceId: string, duration: number}>>({});
   const [selectedDate, setSelectedDate] = React.useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = React.useState<string | null>(null);
+  const [selectedCenter, setSelectedCenter] = React.useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = React.useState(new Date());
   const [availableDates, setAvailableDates] = React.useState<string[]>([]);
   const [timeSlots, setTimeSlots] = React.useState<any[]>([]);
+  const [centerSlots, setCenterSlots] = React.useState<Record<string, any>>({});
+  const [allAvailableDates, setAllAvailableDates] = React.useState<string[]>([]);
 
   // Fetch categories only for the selected provider to avoid quota issues
   const matchedProviderIds = React.useMemo(() => {
@@ -68,10 +71,8 @@ export const Box = (): JSX.Element => {
     console.log('👥 Matching providers:', availableProviderNames);
     setMatchedProviders(availableProviderNames);
     
-    // Set the first provider as selected for fetching categories
-    if (availableProviderObjects.length > 0) {
-      setSelectedProvider(availableProviderObjects[0]);
-    }
+    // Set all providers for fetching categories and slots
+    setSelectedProvider(availableProviderObjects[0]); // For categories display
   };
   
   const handleNext = () => {
@@ -128,11 +129,10 @@ export const Box = (): JSX.Element => {
     // Move to step 3
     setCurrentStep(3);
 
-    // Initialize booking flow for the first selected service
+    // Initialize booking flow for all centers
     const firstServiceId = selectedServiceIds[0];
-    const centerId = selectedProvider?.provider_id;
     
-    if (centerId && firstServiceId) {
+    if (firstServiceId) {
       // Get current date in local timezone (IST)
       const today = new Date();
       const year = today.getFullYear();
@@ -140,53 +140,117 @@ export const Box = (): JSX.Element => {
       const day = String(today.getDate()).padStart(2, '0');
       const appointmentDate = `${year}-${month}-${day}`;
       
-      console.log('🔄 Initializing booking flow...');
-      const result = await initializeBookingFlow(centerId, firstServiceId.serviceId, appointmentDate);
-      
-      if (result && result.slots && result.futureDays) {
-        console.log('📅 Processing booking result:', result);
-        console.log('📅 Future days from API:', result.futureDays);
+      console.log('🔄 Initializing booking flow for all centers...');
+      await fetchSlotsFromAllCenters(firstServiceId.serviceId, appointmentDate);
+    }
+  };
+
+  const fetchSlotsFromAllCenters = async (serviceId: string, appointmentDate: string) => {
+    const availableProviderObjects = providers.filter(provider => 
+      provider.status === 'active' && 
+      matchedProviders.includes(provider.name)
+    );
+
+    const centerSlotsData: Record<string, any> = {};
+    const allDatesSet = new Set<string>();
+
+    console.log(`🏢 Fetching slots from ${availableProviderObjects.length} centers...`);
+
+    // Fetch slots from all centers
+    for (const provider of availableProviderObjects) {
+      try {
+        console.log(`🔄 Fetching slots for center: ${provider.name} (${provider.provider_id})`);
         
-        // Process future_days data for available dates
-        const availableDatesFromFutureDays = result.futureDays
-          .filter(day => day.IsAvailable)
-          .map(day => {
-            // Extract date part directly without timezone conversion
-            return day.Day.split('T')[0];
-          });
+        const result = await initializeBookingFlow(provider.provider_id, serviceId, appointmentDate);
         
-        console.log('📅 Processed future days:', availableDatesFromFutureDays);
+        if (result && result.slots && result.futureDays) {
+          centerSlotsData[provider.provider_id] = {
+            providerName: provider.name,
+            slots: result.slots,
+            futureDays: result.futureDays
+          };
+
+          // Collect all available dates from this center
+          const availableDatesFromCenter = result.futureDays
+            .filter(day => day.IsAvailable)
+            .map(day => day.Day.split('T')[0]);
+          
+          availableDatesFromCenter.forEach(date => allDatesSet.add(date));
+          
+          console.log(`✅ Center ${provider.name}: ${result.slots.length} slots, ${availableDatesFromCenter.length} available dates`);
+        }
         
-        // Get all available dates from future_days (this includes today if available)
-        console.log('📅 Available dates from future_days:', availableDatesFromFutureDays);
+        // Add delay between requests
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Use the available dates from future_days as the source of truth
-        const availableDates = [...availableDatesFromFutureDays];
-        
-        console.log('📅 Final available dates:', availableDates);
-        setAvailableDates(availableDates);
+      } catch (error) {
+        console.error(`❌ Error fetching slots for center ${provider.name}:`, error);
       }
     }
+
+    // Set the combined data
+    setCenterSlots(centerSlotsData);
+    const allAvailableDatesArray = Array.from(allDatesSet).sort();
+    setAllAvailableDates(allAvailableDatesArray);
+    setAvailableDates(allAvailableDatesArray);
+    
+    console.log('🎯 Combined results:', {
+      totalCenters: Object.keys(centerSlotsData).length,
+      totalAvailableDates: allAvailableDatesArray.length,
+      availableDates: allAvailableDatesArray
+    });
   };
 
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
     setSelectedTime(null);
+    setSelectedCenter(null);
     
-    // Filter time slots for selected date
+    // Combine time slots from all centers for the selected date
     const dateString = date.toISOString().split('T')[0];
-    const slotsForDate = availableSlots
-      .filter(slot => slot.Available && slot.Time.startsWith(dateString))
-      .map(slot => ({
-        time: slot.Time.split('T')[1].substring(0, 5), // Extract HH:MM from ISO string
-        available: slot.Available,
-        therapist_name: undefined
-      }));
-    setTimeSlots(slotsForDate);
+    const combinedSlots: any[] = [];
+    const slotTimeMap = new Map<string, string>(); // time -> centerId mapping
+
+    // Collect slots from all centers for this date
+    Object.entries(centerSlots).forEach(([centerId, centerData]) => {
+      const slotsForDate = centerData.slots
+        .filter((slot: any) => slot.Available && slot.Time.startsWith(dateString))
+        .map((slot: any) => {
+          const timeString = slot.Time.split('T')[1].substring(0, 5);
+          
+          // Only add this time slot if we haven't seen this time before
+          if (!slotTimeMap.has(timeString)) {
+            slotTimeMap.set(timeString, centerId);
+            return {
+              time: timeString,
+              available: slot.Available,
+              centerId: centerId,
+              providerName: centerData.providerName
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+      
+      combinedSlots.push(...slotsForDate);
+    });
+
+    // Sort slots by time
+    combinedSlots.sort((a, b) => a.time.localeCompare(b.time));
+    setTimeSlots(combinedSlots);
+    
+    console.log(`📅 Selected date ${dateString}: ${combinedSlots.length} available slots from ${Object.keys(centerSlots).length} centers`);
   };
 
   const handleTimeSelect = (time: string) => {
     setSelectedTime(time);
+    
+    // Find which center has this time slot
+    const selectedSlot = timeSlots.find(slot => slot.time === time);
+    if (selectedSlot) {
+      setSelectedCenter(selectedSlot.centerId);
+      console.log(`🎯 Selected time ${time} from center: ${selectedSlot.providerName} (${selectedSlot.centerId})`);
+    }
   };
 
   // Console log the address value whenever it changes

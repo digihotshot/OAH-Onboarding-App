@@ -4,7 +4,8 @@ import { Clock } from 'lucide-react';
 interface TimeSlot {
   time: string;
   available: boolean;
-  therapist_name?: string;
+  centerId?: string;
+  providerName?: string;
 }
 
 interface TimeSlotsProps {
@@ -104,9 +105,9 @@ export const TimeSlots: React.FC<TimeSlotsProps> = ({
                   <div className="font-medium">
                     {formatTimeSlot(slot.time)}
                   </div>
-                  {slot.therapist_name && (
+                  {slot.providerName && (
                     <div className="text-sm opacity-75 mt-1">
-                      with {slot.therapist_name}
+                      with {slot.providerName}
                     </div>
                   )}
                 </div>
