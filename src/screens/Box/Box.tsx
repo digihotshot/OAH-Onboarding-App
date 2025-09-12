@@ -209,33 +209,35 @@ export const Box = (): JSX.Element => {
       availableDates: allAvailableDatesArray
     });
   };
-
-  const handleDateSelect = (date: Date) => {
-    setSelectedDate(date);
-    setSelectedTime(null);
-    setSelectedCenter(null);
-    
-    // Combine time slots from all centers for the selected date
-    const dateString = date.toISOString().split('T')[0];
-    const combinedSlots: any[] = [];
-    const slotTimeMap = new Map<string, string>(); // time -> centerId mapping
-
-    // Collect slots from all centers for this date
-    Object.entries(centerSlots).forEach(([centerId, centerData]) => {
-      const slotsForDate = centerData.slots
-        .filter((slot: any) => slot.Available && slot.Time.startsWith(dateString))
-        .map((slot: any) => {
-          const timeString = slot.Time.split('T')[1].substring(0, 5);
-          
-          // Only add this time slot if we haven't seen this time before
-          if (!slotTimeMap.has(timeString)) {
-            slotTimeMap.set(timeString, centerId);
-            return {
-              time: timeString,
-              available: slot.Available,
-              centerId: centerId,
-              providerName: centerData.providerName
-            };
+            // Collect available dates - prioritize future_days, fallback to slots
+            let availableDatesFromCenter: string[] = [];
+            
+            if (result.futureDays && result.futureDays.length > 0) {
+              // Use future_days if available
+              availableDatesFromCenter = result.futureDays
+                .filter(day => day.IsAvailable)
+                .map(day => day.Day.split('T')[0]);
+              console.log(`📅 Center ${provider.name}: Using future_days for available dates`);
+            } else {
+              // Fallback to extracting dates from slots when future_days is null
+              const slotsWithDates = result.slots
+                .filter(slot => slot.Available)
+                .map(slot => slot.Time.split('T')[0]);
+              
+              // Remove duplicates
+              availableDatesFromCenter = [...new Set(slotsWithDates)];
+              console.log(`📅 Center ${provider.name}: Using slots for available dates (future_days was null)`);
+            }
+            
+            // Filter dates to be within 3 months from today
+            const filteredDates = availableDatesFromCenter.filter(dateString => {
+              const date = new Date(dateString);
+              return date >= today && date <= threeMonthsFromNow;
+            });
+            
+            // Add to the combined set
+            filteredDates.forEach(date => allDatesSet.add(date));
+            console.log(`✅ Center ${provider.name}: ${result.slots.length} slots, ${filteredDates.length} available dates`);
           }
           return null;
         })
