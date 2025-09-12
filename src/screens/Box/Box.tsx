@@ -39,9 +39,10 @@
                 <Calendar
                   selectedDate={selectedDate}
                   onDateSelect={handleDateSelect}
-                  availableDates={availableDates}
+                  availableDates={Array.from(availableDates)}
                   currentMonth={currentMonth}
-                  onMonthChange={setCurrentMonth}
+                  onMonthChange={handleMonthChange}
+                  isCheckingAvailability={isCheckingAvailability}
                 />
 
                 {selectedDate ? (
