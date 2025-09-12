@@ -1,4 +1,46 @@
-<User className="w-5 h-5" />
+const handleNextFromStep2 = async () => {
+    // Check if at least one service is selected
+    const selectedServiceIds = Object.values(selectedServices);
+    if (selectedServiceIds.length === 0) {
+      alert('Please select at least one service');
+      return;
+    }
+
+    // Move to step 3
+    setCurrentStep(3);
+
+    // Start checking availability for the current month
+    await checkAvailabilityForMonth(currentMonth);
+  };
+
+  if (currentStep === 3) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-20">
+              <div className="flex items-center space-x-8">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-[#C2A88F] rounded-lg flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">S</span>
+                  </div>
+                  <span className="text-xl font-semibold text-gray-900">SkinCare</span>
+                </div>
+
+                <nav className="hidden md:flex space-x-8">
+                  <a href="#" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Services</a>
+                  <a href="#" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">About</a>
+                  <a href="#" className="text-gray-700 hover:text-gray-900 font-medium transition-colors">Contact</a>
+                </nav>
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <div className="hidden md:flex items-center space-x-3">
+                  <button className="p-2 text-gray-600 hover:text-gray-900 transition-colors">
+                    <Search className="w-5 h-5" />
+                  </button>
+                  <button className="p-2 text-gray-600 hover:text-gray-900 transition-colors">
+                    <User className="w-5 h-5" />
                   </button>
                 </div>
               </div>
@@ -39,10 +81,9 @@
                 <Calendar
                   selectedDate={selectedDate}
                   onDateSelect={handleDateSelect}
-                  availableDates={Array.from(availableDates)}
+                  availableDates={availableDates}
                   currentMonth={currentMonth}
-                  onMonthChange={handleMonthChange}
-                  isCheckingAvailability={isCheckingAvailability}
+                  onMonthChange={setCurrentMonth}
                 />
 
                 {selectedDate ? (
@@ -113,4 +154,3 @@
   }
 
   return null;
-};
