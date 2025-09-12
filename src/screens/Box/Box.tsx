@@ -4,7 +4,7 @@ import { AddressInput } from "../../components/AddressInput";
 import { CategoryDropdown } from "../../components/CategoryDropdown";
 import { Calendar } from "../../components/Calendar";
 import { TimeSlots } from "../../components/TimeSlots";
-import { MapPin, Home, Calendar as CalendarIcon, User } from "lucide-react";
+import { MapPin, Home, Calendar as CalendarIcon, User, Clock } from "lucide-react";
 import { providers } from "../../data/providers";
 import { useZenotiCategories } from "../../hooks/useZenotiCategories";
 import { useZenotiBooking } from "../../hooks/useZenotiBooking";
