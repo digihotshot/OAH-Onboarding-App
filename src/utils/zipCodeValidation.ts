@@ -1,4 +1,4 @@
-import { providers, Provider } from '../data/providers';
+import { Provider } from '../types/middleware';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -16,9 +16,9 @@ export const extractZipCode = (address: string): string | null => {
 };
 
 /**
- * Validate if a zipcode is served by any active provider
+ * Validate if a zipcode is served by any active provider using middleware API
  */
-export const validateZipCode = (zipCode: string): ValidationResult => {
+export const validateZipCode = async (zipCode: string): Promise<ValidationResult> => {
   if (!zipCode) {
     return {
       isValid: false,
@@ -27,39 +27,39 @@ export const validateZipCode = (zipCode: string): ValidationResult => {
     };
   }
 
-  // Find all active providers that serve this zipcode
-  const availableProviders = providers.filter(provider => 
-    provider.status === 'active' && 
-    provider.zipCodes.includes(zipCode)
-  );
+  try {
+    const response = await fetch(`http://localhost:3000/api/providers/zipcode/${zipCode}`);
+    const data = await response.json();
 
-  if (availableProviders.length > 0) {
-    const providerCount = availableProviders.length;
-    const message = providerCount === 1 
-      ? `Great! ${availableProviders[0].name} serves your area.`
-      : `Great! ${providerCount} providers serve your area.`;
+    if (data.success && data.data && data.data.length > 0) {
+      const availableProviders = data.data;
+      const providerCount = availableProviders.length;
+      const message = providerCount === 1 
+        ? `Great! ${availableProviders[0].name} serves your area.`
+        : `Great! ${providerCount} providers serve your area.`;
+      
+      // Log the success message to console instead of showing it in UI
+      console.log('✅', message);
+      console.log('📍 Available providers:', availableProviders.map(p => ({ name: p.name, id: p.provider_id })));
+
+      return {
+        isValid: true,
+        availableProviders,
+        message: '' // Empty message for successful validation
+      };
+    }
 
     return {
-      isValid: true,
-      availableProviders,
-      message
+      isValid: false,
+      availableProviders: [],
+      message: 'Sorry, we don\'t currently serve your area. Please check back soon as we\'re expanding!'
+    };
+  } catch (error) {
+    console.error('Error validating zipcode:', error);
+    return {
+      isValid: false,
+      availableProviders: [],
+      message: 'Unable to verify service area. Please try again.'
     };
   }
-
-  return {
-    isValid: false,
-    availableProviders: [],
-    message: 'Sorry, we don\'t currently serve your area. Please check back soon as we\'re expanding!'
-  };
-};
-
-/**
- * Get all unique zipcodes served by active providers
- */
-export const getAllServedZipCodes = (): string[] => {
-  const allZipCodes = providers
-    .filter(provider => provider.status === 'active')
-    .flatMap(provider => provider.zipCodes);
-  
-  return [...new Set(allZipCodes)].sort();
 };
