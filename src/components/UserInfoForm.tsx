@@ -5,8 +5,10 @@ import { Heading } from './ui/heading';
 import { StepText } from './ui/step-text';
 
 interface UserInfoFormProps {
-  onNext: (userInfo: UserInfo) => void;
+  onNext: (userInfo: UserInfo) => Promise<void>;
   onBack: () => void;
+  isSubmitting?: boolean;
+  errorMessage?: string | null;
 }
 
 export interface UserInfo {
@@ -21,7 +23,7 @@ interface FormErrors {
   phone?: string;
 }
 
-export const UserInfoForm: React.FC<UserInfoFormProps> = ({ onNext, onBack }) => {
+export const UserInfoForm: React.FC<UserInfoFormProps> = ({ onNext, onBack, isSubmitting = false, errorMessage }) => {
   const [formData, setFormData] = useState<UserInfo>({
     name: '',
     email: '',
@@ -29,7 +31,6 @@ export const UserInfoForm: React.FC<UserInfoFormProps> = ({ onNext, onBack }) =>
   });
   
   const [errors, setErrors] = useState<FormErrors>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -102,13 +103,11 @@ export const UserInfoForm: React.FC<UserInfoFormProps> = ({ onNext, onBack }) =>
       return;
     }
 
-    setIsSubmitting(true);
-    
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    onNext(formData);
-    setIsSubmitting(false);
+    try {
+      await onNext(formData);
+    } catch (error) {
+      console.error('❌ Failed to submit user info:', error);
+    }
   };
 
   const isFormValid = formData.name.trim() && formData.email.trim() && formData.phone.trim() && Object.keys(errors).length === 0;
@@ -185,6 +184,12 @@ export const UserInfoForm: React.FC<UserInfoFormProps> = ({ onNext, onBack }) =>
             </div>
           </div>
 
+          {errorMessage && (
+            <div className="mb-8 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+              {errorMessage}
+            </div>
+          )}
+
           {/* Navigation Buttons */}
           <div className="flex justify-start items-center gap-12">
             <Button
@@ -197,13 +202,12 @@ export const UserInfoForm: React.FC<UserInfoFormProps> = ({ onNext, onBack }) =>
             <Button
               type="submit"
               disabled={!isFormValid || isSubmitting}
-              variant={isFormValid && !isSubmitting ? "black" : "disabled"}
+              variant={!isFormValid || isSubmitting ? "disabled" : "black"}
             >
               {isSubmitting ? (
-                <div className="flex items-center space-x-2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  <span>Processing...</span>
-                </div>
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                </>
               ) : (
                 'Next'
               )}

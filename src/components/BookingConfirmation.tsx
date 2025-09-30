@@ -20,6 +20,7 @@ interface BookingConfirmationProps {
   onEditDateTime: () => void;
   onEditProvider: () => void;
   onSkipToFinal?: () => void; // Temporary prop for testing
+  isConfirming?: boolean;
 }
 
 export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
@@ -34,7 +35,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   onEditTreatment,
   onEditDateTime,
   onEditProvider,
-  
+  isConfirming = false,
 }) => {
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
@@ -88,9 +89,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                     <h3 className="text-lg font-bold text-[#8B4513] truncate">
                       {selectedProvider?.name || 'Provider Not Selected'}
                     </h3>
-                    <p className="text-sm text-[#A0522D] truncate">
-                      {selectedProvider?.description || 'Specializes in Beauty Treatments'}
-                    </p>
+                    
                   </div>
                   
                   {/* Change Provider Button */}
@@ -175,14 +174,23 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
           <Button
             onClick={onBack}
             variant="ghost"
+            disabled={isConfirming}
           >
             Back
           </Button>
           <Button
             onClick={onConfirm}
-            variant="black"
+            variant={isConfirming ? "disabled" : "black"}
+            disabled={isConfirming}
           >
-            Confirm
+            {isConfirming ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Confirming...
+              </>
+            ) : (
+              'Confirm'
+            )}
           </Button>
           
           {/* Temporary link to final step - REMOVE LATER */}

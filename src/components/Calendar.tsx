@@ -1,33 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { useOptimizedSlots } from '../hooks/useOptimizedSlots';
+import type { AvailableSlots } from '../hooks/useOptimizedSlots';
+import type { CalendarSlot } from '../types/slots';
 
 interface CalendarProps {
-  selectedServices: any[];
   onDateSelect: (date: Date) => void;
   onTimeSelect: (time: string, slotInfo?: any) => void;
   selectedDate?: Date;
   selectedTime?: string;
+  isLoading?: boolean;
+  availableSlots?: AvailableSlots[];
+  availableDatesCount?: number;
+  futureDaysCount?: number;
+}
+
+interface ResolvedTimeSlot {
+  slot: CalendarSlot;
+  rawTime: string;
+  displayTime: string;
+  comparableValue: number;
 }
 
 // Remove local AvailableSlots interface - now using the one from useOptimizedSlots
 
 export const Calendar: React.FC<CalendarProps> = ({
-  selectedServices,
   onDateSelect,
   onTimeSelect,
   selectedDate,
-  selectedTime
+  selectedTime,
+  isLoading = false,
+  availableSlots = [],
+  availableDatesCount = 0,
+  futureDaysCount = 0
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  
-  // Use optimized slots hook (backend handles 28-day limit)
-  const { 
-    availableSlots, 
-    loading
-  } = useOptimizedSlots({ 
-    selectedServices, 
-    dateRange: 28 
-  });
 
   // Debug: Log available slots data
   useEffect(() => {
@@ -37,10 +42,34 @@ export const Calendar: React.FC<CalendarProps> = ({
         slotsWithAvailability: availableSlots.filter(s => s.hasSlots).length,
         availableDates: availableSlots.filter(s => s.hasSlots).map(s => s.date),
         sampleSlot: availableSlots.find(s => s.hasSlots),
-        sampleSlotCenters: availableSlots.find(s => s.hasSlots)?.centers
+        sampleSlotCenters: availableSlots.find(s => s.hasSlots)?.centers,
+        availableDatesCount,
+        futureDaysCount
       });
+      
+      // Check each available slot in detail
+      availableSlots.forEach((slot, index) => {
+        if (index < 5) { // Log first 5 for better debugging
+          console.log(`🔍 Slot ${index}:`, {
+            date: slot.date,
+            hasSlots: slot.hasSlots,
+            slotsCount: slot.slotsCount,
+            centers: slot.centers?.length || 0,
+            slots: slot.slots?.length || 0,
+            fullSlot: slot
+          });
+        }
+      });
+      
+      // Log any slots with issues
+      const problematicSlots = availableSlots.filter(slot => 
+        slot.hasSlots && (!slot.slots || slot.slots.length === 0) && (!slot.centers || slot.centers.length === 0)
+      );
+      if (problematicSlots.length > 0) {
+        console.warn('⚠️ Found slots marked as available but with no actual slot data:', problematicSlots);
+      }
     }
-  }, [availableSlots]);
+  }, [availableSlots, availableDatesCount, futureDaysCount]);
 
   // Slots are now fetched automatically by useOptimizedSlots hook
 
@@ -56,8 +85,6 @@ export const Calendar: React.FC<CalendarProps> = ({
     const days = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const next28Days = new Date(today);
-    next28Days.setDate(today.getDate() + 28);
     
     for (let i = 0; i < 42; i++) { // 6 weeks * 7 days
       const date = new Date(startDate);
@@ -67,21 +94,41 @@ export const Calendar: React.FC<CalendarProps> = ({
       const isToday = date.getTime() === today.getTime();
       const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
       const isPast = date < today;
-      const isWithinNext28Days = date >= today && date <= next28Days;
       
       const dateStr = date.toISOString().split('T')[0];
       const slotInfo = availableSlots.find(slot => slot.date === dateStr);
-      const hasSlots = isWithinNext28Days ? (slotInfo?.hasSlots || false) : false;
       
-      // Debug logging for date matching
-      if (typeof window !== 'undefined' && window.location.hostname === 'localhost' && (dateStr === '2025-09-30' || dateStr === '2025-10-01')) {
+      // More robust slot detection - check both existence and hasSlots property
+      const hasSlots = slotInfo ? (slotInfo.hasSlots === true) : false;
+      
+      // Use the original logic but with better validation
+      // If slotInfo exists and hasSlots is true, consider it valid
+      const hasValidSlots = hasSlots;
+      
+      // Debug logging for date matching - check all dates in current month
+      if (typeof window !== 'undefined' && window.location.hostname === 'localhost' && isCurrentMonth && !isPast) {
         console.log(`🔍 Date matching for ${dateStr}:`, {
           dateStr,
           slotInfo,
           hasSlots,
-          isWithinNext28Days,
+          isCurrentMonth,
+          isPast,
+          willShowGreen: (hasSlots && isCurrentMonth && !isPast),
           availableSlotsDates: availableSlots.map(s => s.date),
-          availableSlotsWithSlots: availableSlots.filter(s => s.hasSlots).map(s => s.date)
+          availableSlotsWithSlots: availableSlots.filter(s => s.hasSlots).map(s => s.date),
+          note: 'API now only returns available dates, so slotInfo existence indicates availability'
+        });
+      }
+      
+      // Additional debug for any date with slots
+      if (typeof window !== 'undefined' && window.location.hostname === 'localhost' && slotInfo && slotInfo.hasSlots) {
+        console.log(`🟢 Found slots for ${dateStr}:`, {
+          dateStr,
+          slotInfo,
+          hasSlots,
+          isCurrentMonth,
+          isPast,
+          willShowGreen: (hasSlots && isCurrentMonth && !isPast)
         });
       }
       
@@ -91,7 +138,7 @@ export const Calendar: React.FC<CalendarProps> = ({
         isToday,
         isSelected,
         isPast,
-        hasSlots
+        hasSlots: hasValidSlots // Use the more robust validation
       });
     }
     
@@ -105,33 +152,157 @@ export const Calendar: React.FC<CalendarProps> = ({
     onDateSelect(date);
   };
 
+  const FALLBACK_TIME_KEYS = ['Time', 'startTime', 'start_time', 'slotTime', 'time_slot'] as const;
+
+  const getRawTimeValue = (slot: CalendarSlot): string | undefined => {
+    if (typeof slot.time === 'string' && slot.time.trim().length > 0) {
+      return slot.time;
+    }
+
+    for (const key of FALLBACK_TIME_KEYS) {
+      const value = slot[key];
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value;
+      }
+    }
+
+    return undefined;
+  };
+
+  const parseTimeString = (timeStr: string, referenceDate: Date): Date | null => {
+    const trimmed = typeof timeStr === 'string' ? timeStr.trim() : '';
+    if (!trimmed) {
+      return null;
+    }
+
+    const parsedIso = Date.parse(trimmed);
+    if (!Number.isNaN(parsedIso)) {
+      return new Date(parsedIso);
+    }
+
+    const timePattern = /^\s*(\d{1,2}):(\d{2})(?:\s*(AM|PM))?\s*$/i;
+    const match = trimmed.match(timePattern);
+
+    if (match) {
+      let hours = parseInt(match[1], 10);
+      const minutes = parseInt(match[2], 10);
+      const meridiem = match[3]?.toUpperCase();
+
+      if (meridiem === 'PM' && hours < 12) {
+        hours += 12;
+      } else if (meridiem === 'AM' && hours === 12) {
+        hours = 0;
+      }
+
+      const comparableDate = new Date(referenceDate);
+      comparableDate.setHours(hours, minutes, 0, 0);
+      return comparableDate;
+    }
+
+    return null;
+  };
+
+  const createTimeKey = (timeStr: string, referenceDate: Date) => {
+    const parsed = parseTimeString(timeStr, referenceDate);
+    if (parsed) {
+      const minutes = parsed.getHours() * 60 + parsed.getMinutes();
+      return `minutes:${minutes}`;
+    }
+    return `raw:${timeStr}`;
+  };
+
+  const formatDisplayTime = (rawTime: string, parsed: Date | null) => {
+    if (!rawTime || rawTime === 'No time') {
+      return 'No time';
+    }
+
+    if (parsed) {
+      return parsed.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    }
+
+    return rawTime;
+  };
+
   // Get time slots for selected date
-  const getTimeSlotsForDate = (date: Date) => {
+  const getTimeSlotsForDate = (date: Date): ResolvedTimeSlot[] => {
     if (!date) return [];
-    
+
     const dateStr = date.toISOString().split('T')[0];
     const slotInfo = availableSlots.find(slot => slot.date === dateStr);
-    
+
     if (!slotInfo || !slotInfo.hasSlots) return [];
-    
-    // Extract time slots from the nested structure
-    // The API response has slots under: slots_by_date[date].centers[].hourly_slots[].slots[]
-    const timeSlots: any[] = [];
-    
+
+    const timeSlots: CalendarSlot[] = [];
+
     if (slotInfo.centers && slotInfo.centers.length > 0) {
       slotInfo.centers.forEach(center => {
-        if (center.hourly_slots) {
-          center.hourly_slots.forEach((hourlySlot: any) => {
-            if (hourlySlot.slots) {
-              timeSlots.push(...hourlySlot.slots);
-            }
-          });
+        if (center.slots) {
+          timeSlots.push(...center.slots);
         }
       });
     }
-    
-    console.log(`🔍 Time slots for ${dateStr}:`, timeSlots);
-    return timeSlots;
+
+    const dedupedByTime = new Map<string, { slot: CalendarSlot; rawTime: string; parsed: Date | null }>();
+    let fallbackIndex = 0;
+
+    timeSlots.forEach(slot => {
+      const rawTime = getRawTimeValue(slot);
+      const parsed = rawTime ? parseTimeString(rawTime, date) : null;
+      const key = rawTime ? createTimeKey(rawTime, date) : `idx:${fallbackIndex++}`;
+      const existing = dedupedByTime.get(key);
+
+      if (!existing) {
+        dedupedByTime.set(key, {
+          slot,
+          rawTime: rawTime ?? 'No time',
+          parsed
+        });
+        return;
+      }
+
+      const existingPriority = existing.slot.priority ?? Number.MAX_SAFE_INTEGER;
+      const currentPriority = slot.priority ?? Number.MAX_SAFE_INTEGER;
+
+      if (currentPriority < existingPriority) {
+        dedupedByTime.set(key, {
+          slot,
+          rawTime: rawTime ?? 'No time',
+          parsed
+        });
+        return;
+      }
+
+      if (currentPriority === existingPriority) {
+        const existingCount = existing.slot.count ?? 0;
+        const currentCount = slot.count ?? 0;
+        if (currentCount > existingCount) {
+          dedupedByTime.set(key, {
+            slot,
+            rawTime: rawTime ?? 'No time',
+            parsed
+          });
+        }
+      }
+    });
+
+    return [...dedupedByTime.values()]
+      .sort((a, b) => {
+        const comparison = (a.parsed?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.parsed?.getTime() ?? Number.MAX_SAFE_INTEGER);
+        if (comparison !== 0) {
+          return comparison;
+        }
+        return a.rawTime.localeCompare(b.rawTime);
+      })
+      .map(entry => ({
+        slot: entry.slot,
+        rawTime: entry.rawTime,
+        displayTime: formatDisplayTime(entry.rawTime, entry.parsed),
+        comparableValue: entry.parsed?.getTime() ?? Number.MAX_SAFE_INTEGER
+      }));
   };
 
   const timeSlotsForSelectedDate = selectedDate ? getTimeSlotsForDate(selectedDate) : [];
@@ -161,16 +332,19 @@ export const Calendar: React.FC<CalendarProps> = ({
           
 
           {/* Calendar Navigation */}
-          <div className={` w-full flex items-center justify-between mb-6 ${loading ? 'blur-sm' : ''}`}>
-            <h3 className="text-xl font-semibold text-gray-900" style={{
-              fontFamily: 'Work Sans',
-              fontWeight: 600,
-              fontSize: '20px',
-              lineHeight: '137%',
-              letterSpacing: '0%'
-            }}>
-              {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-            </h3>
+          <div className={` w-full flex items-center justify-between mb-6 ${isLoading ? 'blur-sm' : ''}`}>
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900" style={{
+                fontFamily: 'Work Sans',
+                fontWeight: 600,
+                fontSize: '20px',
+                lineHeight: '137%',
+                letterSpacing: '0%'
+              }}>
+                {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+              </h3>
+              
+            </div>
             <div className="flex items-center space-x-2">
               <button
                 onClick={goToPreviousMonth}
@@ -208,7 +382,7 @@ export const Calendar: React.FC<CalendarProps> = ({
           </div>
 
           {/* Day headers */}
-          <div className={`w-full grid grid-cols-7 gap-2 mb-4 ${loading ? 'blur-sm' : ''}`}>
+          <div className={`w-full grid grid-cols-7 gap-2 mb-4 ${isLoading ? 'blur-sm' : ''}`}>
             {dayNames.map(day => (
               <div key={day} className="text-center flex items-center justify-center" style={{
                 fontFamily: 'Work Sans',
@@ -226,7 +400,7 @@ export const Calendar: React.FC<CalendarProps> = ({
           </div>
 
           {/* Calendar grid */}
-          <div className={`w-full grid grid-cols-7 gap-2 ${loading ? 'blur-sm' : ''}`}>
+          <div className={`w-full grid grid-cols-7 gap-2 ${isLoading ? 'blur-sm' : ''}`}>
             {generateCalendarDays().map((day, index) => (
               <button
                 key={index}
@@ -264,12 +438,21 @@ export const Calendar: React.FC<CalendarProps> = ({
                         : 'transparent'
                 }}
               >
-                {day.date.getDate()}
+                {day.hasSlots && day.isCurrentMonth && !day.isPast && !day.isSelected ? (
+                  <span
+                    className="flex items-center justify-center w-10 h-10 rounded-full text-white"
+                    style={{ backgroundColor: '#4CAF50' }}
+                  >
+                    {day.date.getDate()}
+                  </span>
+                ) : (
+                  day.date.getDate()
+                )}
               </button>
             ))}
           </div>
 
-          {loading && (
+          {isLoading && (
             <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#C2A88F] mx-auto"></div>
@@ -314,41 +497,15 @@ export const Calendar: React.FC<CalendarProps> = ({
               <div className="flex-1 overflow-y-auto scrollbar-hide">
                 {timeSlotsForSelectedDate.length > 0 ? (
                   <div className="space-y-3">
-                    {timeSlotsForSelectedDate.map((slot, index) => {
-                      // Debug: Log the slot structure to understand the data format
-                      console.log('Time slot data:', slot);
-                      
-                      // Try different possible time properties
-                      const timeValue = slot.time || slot.Time || slot.startTime || slot.start_time || slot.slotTime || slot.time_slot || 'No time';
-                      
-                      // Format time if it's an ISO string
-                      const formatTime = (timeStr: string) => {
-                        if (timeStr === 'No time') return timeStr;
-                        
-                        try {
-                          // If it's an ISO string, format it
-                          if (timeStr.includes('T') || timeStr.includes(':')) {
-                            const date = new Date(timeStr);
-                            return date.toLocaleTimeString('en-US', {
-                              hour: 'numeric',
-                              minute: '2-digit',
-                              hour12: true
-                            });
-                          }
-                          return timeStr;
-                        } catch (e) {
-                          return timeStr;
-                        }
-                      };
-                      
-                      const displayTime = formatTime(timeValue);
-                      
+                    {timeSlotsForSelectedDate.map((resolvedSlot, index) => {
+                      const { slot, displayTime } = resolvedSlot;
+
                       return (
                         <button
                           key={index}
-                          onClick={() => onTimeSelect(timeValue, slot)}
+                          onClick={() => onTimeSelect(resolvedSlot.rawTime, slot)}
                           className={`w-full p-3 text-center border transition-all duration-200 ${
-                            selectedTime === timeValue
+                            selectedTime === resolvedSlot.rawTime
                               ? 'border-[#C2A88F80] bg-[#C2A88F] text-white'
                               : 'border-[#C2A88F80] bg-white text-gray-700 hover:bg-[#F5F1ED]'
                           }`}

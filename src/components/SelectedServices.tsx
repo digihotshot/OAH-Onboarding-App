@@ -35,7 +35,7 @@ export const SelectedServices: React.FC<SelectedServicesProps> = ({
         </div>
         
         {/* Service Rows */}
-        {selectedServices.map((service, index) => (
+        {selectedServices.map((service) => (
           <div key={service.id} className="flex justify-between items-center py-2 border-b border-gray-200">
             <span className="text-gray-900">
               {service.name}

@@ -3,390 +3,216 @@
  */
 
 import { cacheManager, generateSlotCacheKey } from '../utils/cacheManager';
+import { transformUnifiedSlotsResponse } from '../utils/slotsTransformer';
+import {
+  TransformedUnifiedSlots,
+  UnifiedSlotsResponse,
+} from '../types/slots';
+import { validateWeekConfig, WEEK_CONFIG } from '../utils/weekUtils';
 
-interface SlotRequest {
-  centers: string[];
-  services: string[];
-  date: string;
-}
-
-interface SlotResponse {
-  success: boolean;
-  data?: {
-    slots_by_center?: Record<string, {
-      slots: Array<{
-        Time: string;
-        Available: boolean;
-        Duration: number;
-        ServiceId: string;
-        CenterId: string;
-      }>;
-    }>;
-    date_availability?: Record<string, {
-      hasSlots: boolean;
-      slotsCount: number;
-      centersCount: number;
-    }>;
-    slots_by_date?: Record<string, {
-      hasSlots: boolean;
-      slotsCount: number;
-      slots: any[];
-      centers: any[];
-    }>;
-  };
-  message?: string;
-}
-
-interface OptimizedSlotsResult {
-  [date: string]: SlotResponse;
-}
+type SlotResponse = UnifiedSlotsResponse;
 
 class SlotsService {
   private readonly API_BASE_URL = 'http://localhost:3000/api';
   private readonly MAX_RETRIES = 3;
   private readonly RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff
+  private readonly CIRCUIT_BREAKER_THRESHOLD = 5; // Number of consecutive failures before circuit opens
+  private readonly CIRCUIT_BREAKER_TIMEOUT = 30000; // 30 seconds
+  private circuitBreakerState = {
+    failures: 0,
+    lastFailureTime: 0,
+    isOpen: false
+  };
   
   // Request deduplication
   private pendingBatchedRequests = new Map<string, Promise<SlotResponse>>();
 
   /**
-   * Fetch slots for a single date with caching and deduplication
+   * Check if circuit breaker is open
    */
-  async fetchSlotsForDate(request: SlotRequest): Promise<SlotResponse> {
-    const cacheKey = generateSlotCacheKey(request.centers, request.services, request.date);
-    
-    // Check cache first
-    const cached = cacheManager.get<SlotResponse>(cacheKey);
+  private isCircuitBreakerOpen(): boolean {
+    if (!this.circuitBreakerState.isOpen) {
+      return false;
+    }
+
+    // Check if timeout has passed
+    if (Date.now() - this.circuitBreakerState.lastFailureTime > this.CIRCUIT_BREAKER_TIMEOUT) {
+      console.log('🔄 Circuit breaker timeout expired, attempting to close');
+      this.circuitBreakerState.isOpen = false;
+      this.circuitBreakerState.failures = 0;
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Record a successful request
+   */
+  private recordSuccess(): void {
+    this.circuitBreakerState.failures = 0;
+    this.circuitBreakerState.isOpen = false;
+  }
+
+  /**
+   * Record a failed request
+   */
+  private recordFailure(): void {
+    this.circuitBreakerState.failures++;
+    this.circuitBreakerState.lastFailureTime = Date.now();
+
+    if (this.circuitBreakerState.failures >= this.CIRCUIT_BREAKER_THRESHOLD) {
+      this.circuitBreakerState.isOpen = true;
+      console.warn(`⚠️ Circuit breaker opened after ${this.circuitBreakerState.failures} consecutive failures`);
+    }
+  }
+
+  /**
+   * Enhanced error recovery with fallback strategies
+   */
+  private async handleRequestWithRecovery<T>(
+    requestFn: () => Promise<T>,
+    fallbackFn?: () => Promise<T>,
+    context: string = 'request'
+  ): Promise<T> {
+    // Check circuit breaker
+    if (this.isCircuitBreakerOpen()) {
+      throw new Error(`Circuit breaker is open for ${context}. Please try again later.`);
+    }
+
+    try {
+      const result = await requestFn();
+      this.recordSuccess();
+      return result;
+    } catch (error) {
+      this.recordFailure();
+      console.error(`❌ ${context} failed:`, error);
+
+      // Try fallback if available
+      if (fallbackFn) {
+        try {
+          console.log(`🔄 Attempting fallback for ${context}`);
+          const fallbackResult = await fallbackFn();
+          console.log(`✅ Fallback succeeded for ${context}`);
+          return fallbackResult;
+        } catch (fallbackError) {
+          console.error(`❌ Fallback also failed for ${context}:`, fallbackError);
+        }
+      }
+
+      throw error;
+    }
+  }
+
+  async fetchSlots(
+    centers: string[],
+    services: string[],
+    weeks: number = WEEK_CONFIG.DEFAULT_WEEKS,
+    startDate?: string,
+  ): Promise<TransformedUnifiedSlots | null> {
+    const startTime = performance.now();
+    const validatedWeeks = validateWeekConfig(weeks);
+    const payload = {
+      centers,
+      services,
+      weeks: validatedWeeks,
+    };
+
+    const cacheKey = generateSlotCacheKey(centers, services, `${startDate ?? 'latest'}:${validatedWeeks}`);
+    const cached = cacheManager.get<TransformedUnifiedSlots>(cacheKey);
     if (cached) {
-      console.log(`🎯 Cache hit for date ${request.date}`);
+      console.log(`🎯 Cache hit for centers ${centers.join(',')}, services ${services.join(',')}, weeks ${weeks}`);
       return cached;
     }
 
-    // Check if request is already pending
-    const pendingRequest = cacheManager.getPendingRequest<SlotResponse>(cacheKey);
+    const pendingRequest = cacheManager.getPendingRequest<TransformedUnifiedSlots>(cacheKey);
     if (pendingRequest) {
-      console.log(`⏳ Waiting for pending request for date ${request.date}`);
+      console.log(`⏳ Waiting for pending request for centers ${centers.join(',')}, services ${services.join(',')}, weeks ${weeks}`);
       return pendingRequest;
     }
 
-    // Create new request
-    const requestPromise = this.makeSlotRequest(request);
-    
-    // Store pending request
-    cacheManager.setPendingRequest(cacheKey, requestPromise);
+    const requestPromise = this.handleRequestWithRecovery(
+      async () => {
+        for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
+          try {
+            console.log(`🚀 Unified endpoint attempt ${attempt + 1}/${this.MAX_RETRIES} for centers ${centers.join(',')}, services ${services.join(',')}, weeks ${weeks}`);
+            console.log(`📊 Request details:`, {
+              centers,
+              services,
+              weeks: weeks,
+              startDate: startDate,
+              optimizationMode: 'unified-single-slot',
+              note: 'Single API call to get slots for a specific center, service, and date range'
+            });
 
-    try {
-      const result = await requestPromise;
-      
-      // Cache successful response
-      if (result.success) {
-        cacheManager.set(cacheKey, result);
-        console.log(`✅ Cached slots for date ${request.date}`);
-      }
-      
-      return result;
-    } catch (error) {
-      console.error(`❌ Failed to fetch slots for date ${request.date}:`, error);
-      throw error;
-    } finally {
-      // Clear pending request
-      cacheManager.clearPendingRequest(cacheKey);
-    }
-  }
-
-  /**
-   * Fetch slots for multiple dates with optimized batching
-   * Uses a single API call for all dates to minimize requests
-   */
-  async fetchSlotsForDateRange(
-    centers: string[], 
-    services: string[], 
-    dates: string[]
-  ): Promise<OptimizedSlotsResult> {
-    console.log(`🚀 Fetching slots for ${dates.length} dates with ${centers.length} centers and ${services.length} services`);
-    
-    const results: OptimizedSlotsResult = {};
-    
-    // Check cache for each date first
-    const uncachedDates: string[] = [];
-    const cacheKeyPrefix = generateSlotCacheKey(centers, services, '');
-    
-    for (const date of dates) {
-      const cacheKey = `${cacheKeyPrefix}${date}`;
-      const cached = cacheManager.get<SlotResponse>(cacheKey);
-      
-      if (cached) {
-        console.log(`🎯 Cache hit for date ${date}:`, {
-          success: cached.success,
-          hasData: !!cached.data,
-          hasDateAvailability: !!cached.data?.date_availability,
-          hasSlotsByDate: !!cached.data?.slots_by_date,
-          dateAvailabilityKeys: cached.data?.date_availability ? Object.keys(cached.data.date_availability) : 'none'
-        });
-        results[date] = cached;
-      } else {
-        uncachedDates.push(date);
-      }
-    }
-    
-    // If all dates are cached, return immediately
-    if (uncachedDates.length === 0) {
-      console.log(`✅ All ${dates.length} dates served from cache`);
-      
-      // Debug: Check if cached data has the new structure
-      const hasNewStructure = Object.values(results).some(result => 
-        result.success && result.data?.date_availability
-      );
-      
-      if (!hasNewStructure) {
-        console.log(`⚠️ Cached data is in old format, clearing cache and refetching`);
-        // Clear cache and refetch
-        cacheManager.clear();
-        return this.fetchSlotsForDateRange(centers, services, dates);
-      }
-      
-      return results;
-    }
-    
-    console.log(`📡 Making single API call for ${uncachedDates.length} uncached dates`);
-    
-    // Create request key for deduplication
-    const requestKey = `${centers.sort().join(',')}-${services.sort().join(',')}-${uncachedDates.sort().join(',')}`;
-    
-    // Check if identical request is already pending
-    if (this.pendingBatchedRequests.has(requestKey)) {
-      console.log(`⏳ Waiting for identical pending request`);
-      const batchedResult = await this.pendingBatchedRequests.get(requestKey)!;
-      
-      // Process the batched response and create individual date responses
-      const filteredResults: OptimizedSlotsResult = {};
-      if (batchedResult.success && batchedResult.data) {
-        for (const date of uncachedDates) {
-          const dateAvailability = batchedResult.data.date_availability?.[date];
-          const slotsByDate = batchedResult.data.slots_by_date?.[date];
-          
-          if (dateAvailability || slotsByDate) {
-            filteredResults[date] = {
-              success: true,
-              data: {
-                date_availability: dateAvailability ? { [date]: dateAvailability } : undefined,
-                slots_by_date: slotsByDate ? { [date]: slotsByDate } : undefined
+            const response = await fetch(`${this.API_BASE_URL}/slots/unified`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
               },
-              message: `Slots retrieved for ${date}`
-            };
+              body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data: SlotResponse = await response.json();
+            const transformedData = transformUnifiedSlotsResponse(data);
+            const endTime = performance.now();
+            const processingTime = Math.round(endTime - startTime);
+            
+            console.log(`🔍 Unified Endpoint API Response Check:`, {
+              success: data.success,
+              hasData: !!data.data,
+              dataKeys: data.data ? Object.keys(data.data) : [],
+              hasFutureDaysCount: !!data.data?.future_days_count,
+              hasAvailableDates: !!data.data?.available_dates,
+              hasSlotsByDate: !!data.data?.slots_by_date,
+              hasBookingMapping: !!data.data?.booking_mapping,
+              futureDaysValue: data.data?.future_days_count,
+              availableDatesLength: data.data?.available_dates?.length,
+              slotsByDateKeys: data.data?.slots_by_date ? Object.keys(data.data.slots_by_date) : [],
+              bookingMappingLength: data.data?.booking_mapping?.length,
+              message: data.message,
+              processingTime: `${processingTime}ms`
+            });
+            
+            if (data.success && transformedData) {
+              console.log(`✅ Unified endpoint processing completed in ${processingTime}ms`);
+              cacheManager.setSlotData(cacheKey, transformedData, 10 * 60 * 1000); // 10 minutes
+              console.log(`✅ Cached unified slots for centers ${centers.join(',')}, services ${services.join(',')}, weeks ${weeks} with 10min TTL`);
+              return transformedData;
+            }
+
+            console.warn(`⚠️ Unified endpoint returned no data: ${data.message}`);
+            return null;
+            
+          } catch (error) {
+            console.error(`❌ Unified endpoint attempt ${attempt + 1} failed:`, error);
+            
+            if (attempt === this.MAX_RETRIES - 1) {
+              throw error; // Last attempt failed
+            }
+            
+            // Wait before retry
+            const delay = this.RETRY_DELAYS[attempt] || 4000;
+            console.log(`⏳ Waiting ${delay}ms before retry...`);
+            await this.delay(delay);
           }
         }
-      }
-      
-      // Merge with cached results
-      return { ...results, ...filteredResults };
-    }
-    
-    try {
-      // Create and store the promise for deduplication
-      const batchedPromise = this.makeBatchedSlotRequest(centers, services, uncachedDates);
-      this.pendingBatchedRequests.set(requestKey, batchedPromise);
-      
-      // Make single batched API call for all uncached dates
-      const batchedResult = await batchedPromise;
-      
-            // Process the batched response using the new simplified structure
-            if (batchedResult.success && batchedResult.data) {
-              // Create individual responses for each requested date using the new structure
-              for (const date of uncachedDates) {
-                const dateAvailability = batchedResult.data?.date_availability?.[date];
-                const slotsByDate = batchedResult.data?.slots_by_date?.[date];
-                
-                if (dateAvailability || slotsByDate) {
-                  // Create a response structure for this specific date
-                  results[date] = {
-                    success: true,
-                    data: {
-                      date_availability: {
-                        [date]: dateAvailability || { hasSlots: false, slotsCount: 0, centersCount: 0 }
-                      },
-                      slots_by_date: {
-                        [date]: slotsByDate || { hasSlots: false, slotsCount: 0, slots: [], centers: [] }
-                      }
-                    },
-                    message: `Slots retrieved for ${date}`
-                  };
-                  
-                  // Cache the result
-                  const cacheKey = `${cacheKeyPrefix}${date}`;
-                  cacheManager.set(cacheKey, results[date]);
-                  console.log(`✅ Cached slots for date ${date}`);
-                } else {
-                  // No slots for this date
-                  results[date] = {
-                    success: true,
-                    data: {
-                      date_availability: {
-                        [date]: { hasSlots: false, slotsCount: 0, centersCount: 0 }
-                      },
-                      slots_by_date: {
-                        [date]: { hasSlots: false, slotsCount: 0, slots: [], centers: [] }
-                      }
-                    },
-                    message: `No slots available for ${date}`
-                  };
-                }
-              }
-            } else {
-              // Fallback for failed response
-              for (const date of uncachedDates) {
-                results[date] = {
-                  success: false,
-                  message: 'Failed to fetch slots from batched response'
-                };
-              }
-            }
-      
-      console.log(`✅ Successfully processed ${uncachedDates.length} dates in single API call`);
-      
-    } catch (error) {
-      console.error(`❌ Error in batched request:`, error);
-      
-      // Fallback: mark all uncached dates as failed
-      for (const date of uncachedDates) {
-        results[date] = {
-          success: false,
-          message: error instanceof Error ? error.message : 'Unknown error'
-        };
-      }
-    } finally {
-      // Clean up pending request
-      this.pendingBatchedRequests.delete(requestKey);
-    }
+        throw new Error('Max retries exceeded for unified endpoint processing');
+      },
+      // Fallback: return null if fallback fails
+      async () => {
+        console.log(`🔄 Falling back to null for centers ${centers.join(',')}, services ${services.join(',')}, weeks ${weeks}`);
+        return null;
+      },
+      'unified endpoint processing'
+    );
 
-    return results;
-  }
-
-  /**
-   * Make batched API request for multiple dates
-   */
-  private async makeBatchedSlotRequest(
-    centers: string[], 
-    services: string[], 
-    dates: string[]
-  ): Promise<SlotResponse> {
-    const url = `${this.API_BASE_URL}/slots/unified`;
-    
-    for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
-      try {
-        console.log(`🔄 Batched attempt ${attempt + 1}/${this.MAX_RETRIES} for ${dates.length} dates`);
-        
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            centers: [...new Set(centers)], // Remove duplicates
-            services: [...new Set(services)], // Remove duplicates
-            dates: dates // Send all dates in single request
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        
-        console.log(`✅ Successfully fetched batched slots for ${dates.length} dates`);
-        console.log(`📊 Raw batched response:`, data);
-        
-        // Debug: Check the new structure
-        if (data.success && data.data) {
-          console.log(`🔍 New response structure:`, {
-            hasDateAvailability: !!data.data.date_availability,
-            hasSlotsByDate: !!data.data.slots_by_date,
-            dateAvailabilityKeys: data.data.date_availability ? Object.keys(data.data.date_availability) : 'none',
-            slotsByDateKeys: data.data.slots_by_date ? Object.keys(data.data.slots_by_date) : 'none',
-            sampleDateAvailability: data.data.date_availability ? Object.values(data.data.date_availability)[0] : 'none',
-            sampleSlotsByDate: data.data.slots_by_date ? Object.values(data.data.slots_by_date)[0] : 'none'
-          });
-        }
-        
-        // Return the raw response - it will be processed in fetchSlotsForDateRange
-        return data;
-        
-      } catch (error) {
-        console.error(`❌ Batched attempt ${attempt + 1} failed:`, error);
-        
-        if (attempt === this.MAX_RETRIES - 1) {
-          throw error; // Last attempt failed
-        }
-        
-        // Wait before retry
-        const delay = this.RETRY_DELAYS[attempt] || 4000;
-        console.log(`⏳ Waiting ${delay}ms before retry...`);
-        await this.delay(delay);
-      }
-    }
-
-    throw new Error('Max retries exceeded for batched request');
-  }
-
-  /**
-   * Make actual API request with retry logic
-   */
-  private async makeSlotRequest(request: SlotRequest): Promise<SlotResponse> {
-    const url = `${this.API_BASE_URL}/slots/unified`;
-    
-    for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
-      try {
-        console.log(`🔄 Attempt ${attempt + 1}/${this.MAX_RETRIES} for date ${request.date}`);
-        
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            centers: [...new Set(request.centers)], // Remove duplicates
-            services: [...new Set(request.services)], // Remove duplicates
-            date: request.date
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data: SlotResponse = await response.json();
-        
-        if (data.success) {
-          console.log(`✅ Successfully fetched slots for ${request.date}`);
-        } else {
-          console.warn(`⚠️ API returned error for ${request.date}: ${data.message}`);
-        }
-        
-        return data;
-        
-      } catch (error) {
-        console.error(`❌ Attempt ${attempt + 1} failed for ${request.date}:`, error);
-        
-        if (attempt === this.MAX_RETRIES - 1) {
-          throw error; // Last attempt failed
-        }
-        
-        // Wait before retry
-        const delay = this.RETRY_DELAYS[attempt] || 4000;
-        console.log(`⏳ Waiting ${delay}ms before retry...`);
-        await this.delay(delay);
-      }
-    }
-
-    throw new Error('Max retries exceeded');
-  }
-
-  /**
-   * Utility delay function
-   */
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    cacheManager.setPendingRequest(cacheKey, requestPromise);
+    return requestPromise;
   }
 
   /**
@@ -408,7 +234,7 @@ class SlotsService {
     this.pendingBatchedRequests.clear();
     console.log('🧹 Cache and pending requests cleared');
   }
-  
+
   /**
    * Get pending requests count
    */
