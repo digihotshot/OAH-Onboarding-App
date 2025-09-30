@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_CONFIG } from '../config/api';
 
 interface RateLimitStatus {
   limit: number;
@@ -17,7 +18,7 @@ export const useRateLimit = () => {
     setError(null);
     
     try {
-      const response = await fetch('http://localhost:3000/api/rate-limit/status');
+      const response = await fetch(`${API_CONFIG.BASE_URL}/rate-limit/status`);
       const data = await response.json();
       
       if (data.success) {

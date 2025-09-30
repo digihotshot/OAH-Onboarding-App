@@ -2,6 +2,8 @@
  * Booking service for slot reservations
  */
 
+import { API_CONFIG } from '../config/api';
+
 export interface ReservationRequest {
   bookingId?: string;
   providerBookingId?: string;
@@ -143,7 +145,7 @@ interface ProviderSelectionResponse {
 }
 
 export class BookingService {
-  private readonly API_BASE_URL = 'http://localhost:3000/api';
+  private readonly API_BASE_URL = API_CONFIG.BASE_URL;
   private readonly MAX_RETRIES = 3;
   private readonly RETRY_DELAYS = [1000];
   private cachedGuestId: string | null = null;

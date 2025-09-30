@@ -2,6 +2,7 @@
  * Optimized slots service with caching and request deduplication
  */
 
+import { API_CONFIG } from '../config/api';
 import { cacheManager, generateSlotCacheKey } from '../utils/cacheManager';
 import { transformUnifiedSlotsResponse } from '../utils/slotsTransformer';
 import {
@@ -13,7 +14,7 @@ import { validateWeekConfig, WEEK_CONFIG } from '../utils/weekUtils';
 type SlotResponse = UnifiedSlotsResponse;
 
 class SlotsService {
-  private readonly API_BASE_URL = 'http://localhost:3000/api';
+  private readonly API_BASE_URL = API_CONFIG.BASE_URL;
   private readonly MAX_RETRIES = 3;
   private readonly RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff
   private readonly CIRCUIT_BREAKER_THRESHOLD = 5; // Number of consecutive failures before circuit opens

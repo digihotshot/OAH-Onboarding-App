@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { API_CONFIG } from '../config/api';
 
 export interface UniversalCategory {
   id: string;
@@ -84,7 +85,7 @@ export const useUniversalCategories = (centerIds: string[]) => {
         const centerIdsParam = centerIds.join(',');
         console.log('🔍 Fetching categories for centers:', centerIdsParam);
         
-        const response = await fetch(`http://localhost:3000/api/categories?centerIds=${centerIdsParam}`);
+        const response = await fetch(`${API_CONFIG.BASE_URL}/categories?centerIds=${centerIdsParam}`);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);

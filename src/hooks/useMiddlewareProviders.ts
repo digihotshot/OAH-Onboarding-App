@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Provider, MiddlewareResponse, ZipcodeProvidersResponse } from '../types/middleware';
+import { API_CONFIG } from '../config/api';
 
 /**
  * Hook to fetch providers from middleware API
@@ -23,7 +24,7 @@ export const useMiddlewareProviders = (zipcode: string | null) => {
       try {
         console.log(`🔍 Fetching providers for zipcode: ${zipcode}`);
         
-        const response = await fetch(`http://localhost:3000/api/providers/zipcode/${zipcode}`);
+        const response = await fetch(`${API_CONFIG.BASE_URL}/providers/zipcode/${zipcode}`);
         const data: ZipcodeProvidersResponse = await response.json();
 
         if (data.success) {
@@ -83,7 +84,7 @@ export const useAllMiddlewareProviders = () => {
       try {
         console.log('🔍 Fetching all providers from middleware');
         
-        const response = await fetch('http://localhost:3000/api/providers');
+        const response = await fetch(`${API_CONFIG.BASE_URL}/providers`);
         const data: MiddlewareResponse<Provider[]> = await response.json();
 
         if (data.success) {

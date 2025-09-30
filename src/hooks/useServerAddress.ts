@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { API_CONFIG } from '../config/api';
 
 export interface AddressSuggestion {
   placeId: string;
@@ -47,7 +48,7 @@ export const useServerAddress = () => {
     try {
       console.log(`🔍 Fetching address suggestions for: "${input}"`);
       
-      const response = await fetch(`http://localhost:3000/api/address/suggestions?input=${encodeURIComponent(input)}`);
+      const response = await fetch(`${API_CONFIG.BASE_URL}/address/suggestions?input=${encodeURIComponent(input)}`);
       const data = await response.json();
 
       if (data.success) {
@@ -77,7 +78,7 @@ export const useServerAddress = () => {
     try {
       console.log(`🔍 Validating address: "${address}" with placeId: "${placeId}"`);
       
-      const response = await fetch('http://localhost:3000/api/address/validate', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/address/validate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -114,7 +115,7 @@ export const useServerAddress = () => {
     try {
       console.log(`🔍 Getting centers for address: "${address}" with zipcode: "${zipcode}"`);
       
-      const response = await fetch('http://localhost:3000/api/address/centers', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/address/centers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

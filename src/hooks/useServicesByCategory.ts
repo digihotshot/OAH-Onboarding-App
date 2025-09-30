@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_CONFIG } from '../config/api';
 
 export interface ServiceByCategory {
   id: string;
@@ -63,7 +64,7 @@ export const fetchServicesForCategory = async (
   console.log(`🔍 Fetching services for category ID: ${categoryId} with centers: ${centerIdsParam}`);
 
   const response = await fetch(
-    `http://localhost:3000/api/services/category/${categoryId}?centerIds=${centerIdsParam}`,
+    `${API_CONFIG.BASE_URL}/services/category/${categoryId}?centerIds=${centerIdsParam}`,
     {
       signal: options.signal
     }

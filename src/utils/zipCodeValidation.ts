@@ -1,4 +1,5 @@
 import { Provider } from '../types/middleware';
+import { API_CONFIG } from '../config/api';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -28,7 +29,7 @@ export const validateZipCode = async (zipCode: string): Promise<ValidationResult
   }
 
   try {
-    const response = await fetch(`http://localhost:3000/api/providers/zipcode/${zipCode}`);
+    const response = await fetch(`${API_CONFIG.BASE_URL}/providers/zipcode/${zipCode}`);
     const data = await response.json();
 
     if (data.success && data.data && data.data.length > 0) {
