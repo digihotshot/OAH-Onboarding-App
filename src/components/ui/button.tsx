@@ -80,7 +80,7 @@ const OrangeButton = React.forwardRef<HTMLButtonElement, EditButtonProps>(
           alt={iconAlt} 
           className="w-4 h-4 flex-shrink-0" 
         />
-        <span className="font-normal text-base leading-[137%] tracking-[-0.03em]" style={{ fontFamily: 'Work Sans' }}>
+        <span className="font-normal hidden md:inline text-base tracking-[-0.03em]" style={{ fontFamily: 'Work Sans' }}>
           {children}
         </span>
       </button>

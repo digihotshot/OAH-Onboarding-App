@@ -5,6 +5,7 @@ import { Button, OrangeButton } from './ui/button';
 import { Heading } from './ui/heading';
 import { StepText } from './ui/step-text';
 import { Provider } from '../types/middleware';
+import { ProviderDropdown } from './ui/provider-dropdown';
 
 interface BookingConfirmationProps {
   userInfo: UserInfo;
@@ -13,6 +14,8 @@ interface BookingConfirmationProps {
   selectedTime?: string;
   address: string;
   selectedProvider: Provider | null;
+  availableProviders?: Array<Provider & { bookingId: string; priority: number }>;
+  onProviderChange?: (providerId: string) => void;
   onConfirm: () => void;
   onBack: () => void;
   onEditAddress: () => void;
@@ -29,6 +32,8 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   selectedTime,
   address,
   selectedProvider,
+  availableProviders = [],
+  onProviderChange,
   onConfirm,
   onBack,
   onEditAddress,
@@ -58,7 +63,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   return (
     <div className="min-h-screen flex flex-col">
         {/* Step Text */}
-        <div className="mb-6">
+        <div className="mb-8 text-center md:text-left">
           <StepText>STEP 4 OF 4</StepText>
           <Heading>Booking Summary</Heading>
         </div>
@@ -68,34 +73,47 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
             <div className="bg-white   border border-[#C2A88F80] overflow-hidden">
               {/* Provider Details */}
               <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center gap-4">
-                  {/* Provider Image */}
-                  <div className="w-16 h-16 bg-[#F5F1ED] rounded-full flex items-center justify-center flex-shrink-0">
-                    {selectedProvider ? (
-                      <div className="w-12 h-12 bg-[#C2A88F] rounded-full flex items-center justify-center">
-                        <span className="text-white font-semibold text-lg">
-                          {selectedProvider.name.charAt(0)}
-                        </span>
-                      </div>
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  {/* Provider Image and Info */}
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    {/* Provider Image */}
+                    <div className="w-16 h-16 bg-[#F5F1ED] rounded-full flex items-center justify-center flex-shrink-0">
+                      {selectedProvider ? (
+                        <div className="w-12 h-12 bg-[#C2A88F] rounded-full flex items-center justify-center">
+                          <span className="text-white font-semibold text-lg">
+                            {selectedProvider.name.charAt(0)}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center">
+                          <span className="text-gray-500 font-semibold text-lg">?</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Provider Info */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-bold text-[#8B4513] truncate">
+                        {selectedProvider?.name || 'Provider Not Selected'}
+                      </h3>
+                    </div>
+                  </div>
+                  
+                  {/* Provider Dropdown */}
+                  <div className="w-full md:w-auto">
+                    {availableProviders.length > 1 && onProviderChange ? (
+                      <ProviderDropdown
+                        selectedProvider={selectedProvider}
+                        availableProviders={availableProviders}
+                        onProviderChange={onProviderChange}
+                        disabled={isConfirming}
+                      />
                     ) : (
-                      <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center">
-                        <span className="text-gray-500 font-semibold text-lg">?</span>
-                      </div>
+                      <OrangeButton onClick={onEditProvider}>
+                        Change Provider
+                      </OrangeButton>
                     )}
                   </div>
-                  
-                  {/* Provider Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-bold text-[#8B4513] truncate">
-                      {selectedProvider?.name || 'Provider Not Selected'}
-                    </h3>
-                    
-                  </div>
-                  
-                  {/* Change Provider Button */}
-                  <OrangeButton onClick={onEditProvider}>
-                    Change Provider
-                  </OrangeButton>
                 </div>
               </div>
 
@@ -170,7 +188,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
         </div>
 
         {/* Navigation Buttons */}
-        <div className="max-w-2xl w-full flex justify-start items-center gap-12">
+        <div className="max-w-lg w-full flex flex-col md:flex-row items-stretch md:items-center gap-4 md:gap-12">
           <Button
             onClick={onBack}
             variant="ghost"
@@ -193,16 +211,6 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
             )}
           </Button>
           
-          {/* Temporary link to final step - REMOVE LATER */}
-          {/*onSkipToFinal && (
-            <Button
-              onClick={onSkipToFinal}
-              variant="brown"
-              className="ml-auto"
-            >
-              Skip to Final (TEMP)
-            </Button>
-          )*/}
           
         </div>
 

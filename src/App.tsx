@@ -17,33 +17,33 @@ import { StepText } from './components/ui/step-text';
 import { useOptimizedSlots } from './hooks/useOptimizedSlots';
 import { BottomLeftOverlay } from './components/ImageOverlay';
 import { bookingService, type ReservationRequest } from './services/bookingService';
+import { usePersistedBookingState } from './hooks/usePersistedBookingState';
 
 // Common wrapper component with navigation, main image, and content
 const AppWrapper: React.FC<{ children: React.ReactNode; currentStep: number }> = ({ children, currentStep }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-[#F5F1ED]">
-      {/* Main Image - Positioned on top of navbar with rounded corner */}
-      <div className="fixed top-0 right-0 w-[35%] h-screen z-[100]">
+      {/* Main Image - hide on small screens, fixed on md+ */}
+      <div className="hidden md:block fixed top-0 right-0 w-[35%] h-screen z-[100]">
         <div className="w-full h-full relative">
-          <div className="h-full overflow-hidden "style={{ borderTopLeftRadius: '250px' }}>
-          <img
-            src="/Main Image.jpg"
-            alt="Oli At Home Service"
-            className="w-full h-full object-cover"
-          />
+          <div className="h-full overflow-hidden " style={{ borderTopLeftRadius: '250px' }}>
+            <img
+              src="/Main Image.jpg"
+              alt="Oli At Home Service"
+              className="w-full h-full object-cover"
+            />
           </div>
           {/* Overlay blocks positioned absolutely over the image */}
-          
-          <BottomLeftOverlay />
+          <BottomLeftOverlay currentStep={currentStep} />
         </div>
       </div>
-      
+
       {/* Navigation Bar */}
       <NavigationBar currentStep={currentStep} />
-      
-      {/* Bottom Left Blur Effect */}
-      <div 
-        className="fixed z-[60]"
+
+      {/* Bottom Left Blur Effect - hide on small to reduce clutter */}
+      <div
+        className="hidden md:block fixed z-[60]"
         style={{
           bottom: '-20%',
           left: '-10%',
@@ -55,24 +55,40 @@ const AppWrapper: React.FC<{ children: React.ReactNode; currentStep: number }> =
           filter: 'blur(150px)'
         }}
       />
-      
+
+      {/* Mobile Top Right Blur Effect */}
+      <div
+        className="md:hidden fixed z-[60]"
+        style={{
+          top: '-10%',
+          right: '-20%',
+          width: '250px',
+          height: '250px',
+          opacity: 0.5,
+          borderRadius: '50%',
+          background: '#FAB86F',
+          filter: 'blur(120px)'
+        }}
+      />
+
       {/* Main Layout Container */}
-      <div className="flex py-[150px] min-h-screen relative z-[80]">
+      <div className="flex flex-col md:flex-row md:py-[150px] py-10 min-h-screen relative z-[80]">
         {/* Left Side - Form Content */}
-         <div className="flex-1 w-[50%] max-w-[55%] relative z-[70] px-[3%]" >
+        <div className="flex-1 md:w-[50%] md:max-w-[55%] w-full relative z-[70] md:px-[3%] px-4 md:pt-0" >
           {children}
         </div>
-        
-        {/* Right Side - Spacer for image */}
-        <div className="w-[35%] h-screen">
-          {/* This div acts as a spacer since the image is positioned absolutely */}
-        </div>
+
+        {/* Right Side - Spacer for image (md+) */}
+        <div className="hidden md:block w-[35%] h-screen" />
       </div>
     </div>
   );
 };
 
 const App: React.FC = () => {
+  // Persistence hook
+  const { restoreState, saveState, clearState } = usePersistedBookingState();
+  
   // State management for the booking flow
   const [currentStep, setCurrentStep] = useState(1);
   const [address, setAddress] = useState('');
@@ -116,6 +132,7 @@ const App: React.FC = () => {
   const [isConfirming, setIsConfirming] = useState(false);
 
   const isMountedRef = useRef(true);
+  const hasRestoredStateRef = useRef(false);
 
   const transformedSelectedServices = useMemo(() => 
     selectedServices.map(service => ({
@@ -139,6 +156,30 @@ const App: React.FC = () => {
     autoFetch: false,
   });
 
+  // Get providers from middleware API (moved to top to fix hooks order)
+  const { providers: availableProviders } = useMiddlewareProviders(zipCode);
+  
+  // Get available providers for the selected slot (moved to top to fix hooks order)
+  const availableProvidersForSlot = useMemo((): Array<Provider & { bookingId: string; priority: number }> => {
+    if (!selectedDate || !selectedTime) return [];
+    
+    const isoDate = selectedDate.toISOString().split('T')[0];
+    const bookingsForDate = bookingMap.filter(booking => booking.date === isoDate);
+    
+    // Map center IDs to provider objects
+    return bookingsForDate
+      .map(booking => {
+        const provider = availableProviders.find(p => p.provider_id === booking.centerId);
+        return provider ? {
+          ...provider,
+          bookingId: booking.bookingId,
+          priority: booking.priority
+        } : null;
+      })
+      .filter((provider): provider is NonNullable<typeof provider> => provider !== null)
+      .sort((a, b) => a.priority - b.priority); // Sort by priority
+  }, [selectedDate, selectedTime, bookingMap, availableProviders]);
+
   // Remove the useEffect that sets serviceBookingId to bookingMap[0]
   // useEffect(() => {
   //   if (bookingMap.length > 0 && !serviceBookingId) {
@@ -152,11 +193,134 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Restore state from localStorage on mount
+  useEffect(() => {
+    if (hasRestoredStateRef.current) {
+      return;
+    }
+
+    const restoredState = restoreState();
+    if (restoredState) {
+      console.log('🔄 Restoring booking state from localStorage');
+      
+      // Restore all state
+      setCurrentStep(restoredState.currentStep || 1);
+      setAddress(restoredState.address || '');
+      setZipCode(restoredState.zipCode || '');
+      setZipCodeValidation(restoredState.zipCodeValidation || null);
+      
+      // Restore date from ISO string
+      if (restoredState.selectedDate) {
+        setSelectedDate(new Date(restoredState.selectedDate));
+      }
+      
+      setSelectedTime(restoredState.selectedTime);
+      setSelectedServices(restoredState.selectedServices || []);
+      setUserInfo(restoredState.userInfo || null);
+      console.log('🔄 Restored userInfo:', restoredState.userInfo);
+      setSelectedProvider(restoredState.selectedProvider || null);
+      setSelectedSlotInfo(restoredState.selectedSlotInfo || null);
+      setProviderBookingId(restoredState.providerBookingId || null);
+      setGuestId(restoredState.guestId || null);
+
+      console.log('✅ State restored successfully to step', restoredState.currentStep);
+    }
+    
+    hasRestoredStateRef.current = true;
+  }, [restoreState]);
+
+  // Scroll to top whenever step changes for better UX
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentStep]);
+
+  // Save state to localStorage whenever key state changes
+  useEffect(() => {
+    // Don't save until initial state restoration is complete
+    if (!hasRestoredStateRef.current) {
+      return;
+    }
+
+    saveState({
+      currentStep,
+      address,
+      zipCode,
+      zipCodeValidation,
+      selectedDate: selectedDate ? selectedDate.toISOString() : null,
+      selectedTime,
+      selectedServices,
+      userInfo,
+      selectedProvider,
+      selectedSlotInfo,
+      providerBookingId,
+      guestId,
+    });
+  }, [
+    currentStep,
+    address,
+    zipCode,
+    zipCodeValidation,
+    selectedDate,
+    selectedTime,
+    selectedServices,
+    userInfo,
+    selectedProvider,
+    selectedSlotInfo,
+    providerBookingId,
+    guestId,
+    saveState,
+  ]);
+
+  // Auto-refetch slots when entering Step 3 (calendar) with selected services but no slot data
+  useEffect(() => {
+    // Only run after state restoration is complete
+    if (!hasRestoredStateRef.current) {
+      console.log('⏳ Waiting for state restoration to complete...');
+      return;
+    }
+
+    console.log('🔍 Calendar auto-fetch check:', {
+      currentStep,
+      selectedServicesCount: selectedServices.length,
+      availableSlotsCount: availableSlots.length,
+      isUnifiedCallLoading,
+      shouldFetch: currentStep === 3 && selectedServices.length > 0 && availableSlots.length === 0 && !isUnifiedCallLoading
+    });
+
+    // If we're on step 3 and have selected services but no available slots, fetch them
+    if (currentStep === 3 && selectedServices.length > 0 && availableSlots.length === 0 && !isUnifiedCallLoading) {
+      console.log('🔄 Auto-fetching slots for step 3 (page refresh or back navigation)');
+      fetchUnifiedSlots().catch(error => {
+        console.error('❌ Failed to fetch slots on step 3:', error);
+      });
+    }
+  }, [currentStep, selectedServices, availableSlots.length, isUnifiedCallLoading, fetchUnifiedSlots]);
+
+  // Additional effect: Force fetch slots when on Step 3 with services (more aggressive)
+  useEffect(() => {
+    if (!hasRestoredStateRef.current) {
+      return;
+    }
+
+    if (currentStep === 3 && selectedServices.length > 0 && !isUnifiedCallLoading) {
+      // Add a small delay to ensure other effects have run
+      const timeoutId = setTimeout(() => {
+        if (availableSlots.length === 0) {
+          console.log('🔄 Force-fetching slots for step 3 (delayed check)');
+          fetchUnifiedSlots().catch(error => {
+            console.error('❌ Failed to force-fetch slots on step 3:', error);
+          });
+        }
+      }, 1000);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [currentStep, selectedServices.length, availableSlots.length, isUnifiedCallLoading, fetchUnifiedSlots]);
+
   // Convert unified call response to Calendar-compatible format
   
 
-  // Get providers from middleware API (only for Step 1 validation)
-  const { providers: availableProviders } = useMiddlewareProviders(zipCode);
+  // Get providers from middleware API (moved to top)
   
   // Stable provider IDs to prevent infinite re-renders
   const prevProviderIdsRef = useRef<string[]>([]);
@@ -454,7 +618,16 @@ const App: React.FC = () => {
 
   const handleBack = () => {
     if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
+      const previousStep = currentStep - 1;
+      setCurrentStep(previousStep);
+      
+      // If going back to step 3 (calendar) and we have services but no slots, refetch
+      if (previousStep === 3 && selectedServices.length > 0 && availableSlots.length === 0) {
+        console.log('🔄 Refetching slots when navigating back to calendar');
+        fetchUnifiedSlots().catch(error => {
+          console.error('❌ Failed to fetch slots when navigating back:', error);
+        });
+      }
     }
   };
 
@@ -677,8 +850,32 @@ const App: React.FC = () => {
       setCurrentStep(5);
     } catch (error) {
       console.error('❌ Reservation failed:', error);
-      const message =
-        error instanceof Error ? error.message : 'Unable to reserve your appointment. Please try again.';
+      
+      // Check for duplicate mobile number error
+      let message = 'Unable to reserve your appointment. Please try again.';
+      
+      if (error instanceof Error) {
+        try {
+          // Try to parse the error as JSON to check for specific error codes
+          const errorData = JSON.parse(error.message);
+          if (errorData.details && errorData.details.code === 417 && 
+              errorData.details.message === 'duplicate mobile_number') {
+            message = 'Contact no. already exist.';
+          } else {
+            message = error.message;
+          }
+        } catch (parseError) {
+          // If not JSON, check for string patterns
+          if (error.message.includes('duplicate mobile_number') || 
+              error.message.includes('code": 417') ||
+              error.message.includes('Request failed with status code 400')) {
+            message = 'Contact no. already exist.';
+          } else {
+            message = error.message;
+          }
+        }
+      }
+      
       setReservationError(message);
       alert(`Reservation failed: ${message}`);
     } finally {
@@ -710,6 +907,10 @@ const App: React.FC = () => {
           bookingId: confirmationResult.bookingId || prev?.bookingId
         }));
         
+        // Clear persisted state since booking is complete
+        clearState();
+        console.log('🗑️ Cleared persisted state after successful booking confirmation');
+        
         // Move to final confirmation page
         setCurrentStep(6);
       } else {
@@ -724,21 +925,20 @@ const App: React.FC = () => {
     }
   };
 
-
   // Step 1: Address Input
   if (currentStep === 1) {
     return (
       <AppWrapper currentStep={currentStep}>
-        <div className="min-h-screen flex flex-col">
+        <div className="min-h-screen flex flex-col items-center md:items-stretch">
 
           {/* Step Text */}
-          <div className="mb-8">
+          <div className="mb-8 text-center md:text-left">
             <StepText>STEP 1 OF 4</StepText>
             <Heading>Enter your address</Heading>
           </div>
 
           {/* Address Input */}
-          <div className="max-w-lg w-full mb-12">
+          <div className="w-full max-w-lg mb-6 md:mb-12 mx-auto md:mx-0">
             <ServerAddressInput
               value={address}
               onChange={setAddress}
@@ -757,10 +957,8 @@ const App: React.FC = () => {
           )}
 
           {/* Navigation Buttons */}
-          <div className="max-w-lg w-full flex justify-start items-center gap-12">
-            <Button variant="ghost">
-              Back
-            </Button>
+          <div className="w-full max-w-lg mx-auto md:mx-0 flex justify-center md:justify-start items-center gap-6 md:gap-12">
+            
             <Button size="default"
               onClick={() => {
                 if (zipCodeValidation?.isValid) {
@@ -769,6 +967,7 @@ const App: React.FC = () => {
               }}
               disabled={!zipCodeValidation?.isValid}
               variant={zipCodeValidation?.isValid ? "black" : "disabled"}
+              className="w-full md:w-auto"
             >
               Next
             </Button>
@@ -785,7 +984,7 @@ const App: React.FC = () => {
         <div className="min-h-screen flex flex-col">
 
           {/* Step Text */}
-          <div className="mb-12">
+          <div className="mb-8 text-center md:text-left">
             <StepText>STEP 2 OF 4</StepText>
             <Heading>Choose your treatment</Heading>
             </div>
@@ -814,7 +1013,7 @@ const App: React.FC = () => {
             </div>
 
           {/* Navigation Buttons */}
-          <div className="max-w-lg w-full flex justify-start items-center gap-12">
+          <div className="max-w-lg w-full flex flex-col md:flex-row items-stretch md:items-center gap-4 md:gap-12">
             <Button
               onClick={handleBack}
               variant="ghost"
@@ -825,6 +1024,7 @@ const App: React.FC = () => {
               onClick={handleServiceSelectionNext}
               disabled={selectedServices.length === 0}
               variant={selectedServices.length > 0 ? "black" : "disabled"}
+              className="w-full md:w-auto"
             >
               Next
             </Button>
@@ -840,7 +1040,7 @@ const App: React.FC = () => {
       <AppWrapper currentStep={currentStep}>
         <div className="min-h-screen">
           {/* Header */}
-          <div className="mb-12">
+          <div className="mb-8 text-center md:text-left">
             <StepText>STEP 3 OF 4</StepText>
             <Heading>Select date & time</Heading>
             
@@ -863,20 +1063,19 @@ const App: React.FC = () => {
           </div>
 
           {/* Navigation Buttons */}
-          <div className="max-w-6xl w-full flex justify-start items-center gap-12">
+          <div className="max-w-6xl w-full flex flex-col md:flex-row items-stretch md:items-center gap-4 md:gap-12">
             <Button
               onClick={() => setCurrentStep(2)}
               variant="ghost"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
+              
               <span>Back</span>
             </Button>
             <Button
               onClick={handleProviderSelection}
               disabled={!selectedDate || !selectedTime || isSelectingProvider}
               variant={selectedDate && selectedTime && !isSelectingProvider ? "black" : "disabled"}
+              className="w-full md:w-auto"
             >
               {isSelectingProvider ? (
                 <>
@@ -886,9 +1085,7 @@ const App: React.FC = () => {
               ) : (
                 <>
                   <span>Next</span>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  
                 </>
               )}
             </Button>
@@ -900,6 +1097,7 @@ const App: React.FC = () => {
 
   // Step 4: User Information Input
   if (currentStep === 4) {
+    console.log('🔄 Rendering UserInfoForm with userInfo:', userInfo);
     return (
       <AppWrapper currentStep={currentStep}>
         <UserInfoForm
@@ -907,6 +1105,8 @@ const App: React.FC = () => {
           onBack={handleBack}
           isSubmitting={isReserving}
           errorMessage={reservationError}
+          initialValues={userInfo}
+          onUserInfoChange={setUserInfo}
         />
       </AppWrapper>
     );
@@ -914,6 +1114,25 @@ const App: React.FC = () => {
 
   // Step 5: Booking Confirmation
   if (currentStep === 5) {
+
+    const handleProviderChange = (providerId: string) => {
+      const newProvider = availableProvidersForSlot.find(p => p.provider_id === providerId);
+      if (newProvider) {
+        setSelectedProvider(newProvider);
+        setProviderBookingId(newProvider.bookingId);
+        
+        // Update selectedSlotInfo with new provider details
+        setSelectedSlotInfo(prev => prev ? {
+          ...prev,
+          centerId: newProvider.provider_id,
+          bookingId: newProvider.bookingId,
+          priority: newProvider.priority
+        } : null);
+        
+        console.log('🔄 Provider changed to:', newProvider.name, 'Booking ID:', newProvider.bookingId);
+      }
+    };
+
     return (
       <AppWrapper currentStep={currentStep}>
         <BookingConfirmation
@@ -923,6 +1142,8 @@ const App: React.FC = () => {
           selectedTime={selectedTime}
           address={address}
           selectedProvider={selectedProvider}
+          availableProviders={availableProvidersForSlot}
+          onProviderChange={handleProviderChange}
           onConfirm={handleBookingConfirm}
           onBack={handleBack}
           onEditAddress={() => setCurrentStep(1)}
@@ -949,6 +1170,9 @@ const App: React.FC = () => {
         confirmationNumber={confirmationDetails?.confirmationNumber}
         bookingId={confirmationDetails?.bookingId}
         onStartNewBooking={() => {
+          // Clear persisted state
+          clearState();
+          
           // Reset all state and start over
           setCurrentStep(1);
           setAddress('');

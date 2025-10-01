@@ -140,7 +140,7 @@ export const ServerAddressInput: React.FC<ServerAddressInputProps> = ({
       <div className="relative">
         <Input
           ref={inputRef}
-          className="w-full h-16 pr-14 text-base"
+          className="w-full h-12 md:h-16 pr-14 text-base"
           placeholder={placeholder}
           value={value}
           onChange={handleInputChange}

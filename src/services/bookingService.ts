@@ -187,6 +187,19 @@ export class BookingService {
         }
 
         const data = await response.json();
+        
+        // Check for backend error
+        if (data.error || (data.success === false && data.error)) {
+          const errorMessage = data.error || data.message || 'Reservation failed';
+          const errorDetails = data.details ? ` Details: ${JSON.stringify(data.details)}` : '';
+          console.error(`❌ Backend error during reservation:`, {
+            error: data.error,
+            bookingId: data.booking_id || bookingIdentifier,
+            details: data.details
+          });
+          throw new Error(`Backend error: ${errorMessage}${errorDetails}`);
+        }
+        
         const isSuccessful = data.success !== undefined ? data.success : true;
         const resolvedBookingId = data.bookingId || data.data?.bookingId || bookingIdentifier;
         const resolvedConfirmationNumber = data.confirmationNumber || data.data?.confirmationNumber;
@@ -247,31 +260,36 @@ export class BookingService {
       throw new Error('Center information is required to create a guest profile.');
     }
 
-    const guest = await this.ensureGuest({
-      guestId: existingGuestId ?? this.cachedGuestId ?? undefined,
-      centerId,
-      guest: {
-        firstName: this.extractFirstName(userInfo.name),
-        lastName: this.extractLastName(userInfo.name),
-        email: userInfo.email,
-        phone: userInfo.phone,
-      },
-    });
+    try {
+      const guest = await this.ensureGuest({
+        guestId: existingGuestId ?? this.cachedGuestId ?? undefined,
+        centerId,
+        guest: {
+          firstName: this.extractFirstName(userInfo.name),
+          lastName: this.extractLastName(userInfo.name),
+          email: userInfo.email,
+          phone: userInfo.phone,
+        },
+      });
 
-    if (guest?.id) {
-      this.cachedGuestId = guest.id;
-      console.log(`✅ Guest ready with id ${guest.id}`);
-      return guest.id;
+      if (guest?.id) {
+        this.cachedGuestId = guest.id;
+        console.log(`✅ Guest ready with id ${guest.id}`);
+        return guest.id;
+      }
+
+      if (existingGuestId ?? this.cachedGuestId) {
+        const resolvedId = existingGuestId ?? this.cachedGuestId ?? undefined;
+        console.warn('⚠️ Guest creation did not return a new id. Using existing id instead.');
+        return resolvedId;
+      }
+
+      console.error('❌ Failed to prepare guest id.');
+      return undefined;
+    } catch (error) {
+      // Re-throw the error so it can be handled by the calling function
+      throw error;
     }
-
-    if (existingGuestId ?? this.cachedGuestId) {
-      const resolvedId = existingGuestId ?? this.cachedGuestId ?? undefined;
-      console.warn('⚠️ Guest creation did not return a new id. Using existing id instead.');
-      return resolvedId;
-    }
-
-    console.error('❌ Failed to prepare guest id.');
-    return undefined;
   }
 
   /**
@@ -617,7 +635,13 @@ export class BookingService {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        try {
+          const errorData = await response.json();
+          console.error('❌ Guest API error details:', errorData);
+          throw new Error(JSON.stringify(errorData));
+        } catch (jsonError) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
       }
 
       const data = await response.json();

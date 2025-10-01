@@ -20,10 +20,61 @@ export const ImageOverlay: React.FC<ImageOverlayProps> = ({
   );
 };
 
-// Bottom left overlay (matching the image description)
-export const BottomLeftOverlay: React.FC = () => {
+interface BottomLeftOverlayProps {
+  currentStep: number;
+}
+
+// Bottom left overlay with step-based content
+export const BottomLeftOverlay: React.FC<BottomLeftOverlayProps> = ({ currentStep }) => {
+  const getOverlayContent = () => {
+    switch (currentStep) {
+      case 1: // Address step
+        return {
+          title: "50,000+",
+          subtitle: "customers transformed their skin, right from the privacy of their home"
+        };
+      case 2: // Service selection step - Rating display
+        return {
+          title: "4.8",
+          subtitle: "Rated by 1,200+ users across the country",
+          showStars: true
+        };
+      case 3: // Calendar step
+        return {
+          title: "700+ slots",
+          subtitle: "booked in last month."
+        };
+      case 4: // User info step
+        return {
+          title: "2.1M+ happy users",
+          subtitle: "You're in good hands",
+          subtitle2: "We've served",
+          showWavingHand: true
+        };
+      case 5: // Booking confirmation step
+        return {
+          title: "10 Years",
+          subtitle: "Expert providers with experience of more than",
+          subtitleFirst: true
+        };
+      case 6: // Final confirmation step
+        return {
+          title: "2.1M customers",
+          subtitle: "Loved by over",
+          subtitleFirst: true
+        };
+      default:
+        return {
+          title: "50,000+",
+          subtitle: "customers transformed their skin, right from the privacy of their home"
+        };
+    }
+  };
+
+  const content = getOverlayContent();
+
   return (
-    <ImageOverlay >
+    <ImageOverlay>
       <div 
         className="bg-white p-6 max-w-sm"
         style={{ 
@@ -34,16 +85,92 @@ export const BottomLeftOverlay: React.FC = () => {
           border: '1px solid #C2A88F',
           marginLeft: '-20%',
           marginBottom: '5%'
-          
         }}
       >
         <div className="text-left text-[#71430C]">
-          <div className="text-2xl font-bold">
-            50,000+
+          {content.showWavingHand && (
+            <>
+              <div 
+                style={{
+                  fontFamily: 'Inter, sans-serif',
+                  fontWeight: 500,
+                  fontStyle: 'normal',
+                  fontSize: '18px',
+                  lineHeight: '137%',
+                  letterSpacing: '-3%'
+                }}
+              >
+                {content.subtitle} 👋
+              </div>
+              <div 
+                style={{
+                  fontFamily: 'Inter, sans-serif',
+                  fontWeight: 500,
+                  fontStyle: 'normal',
+                  fontSize: '18px',
+                  lineHeight: '137%',
+                  letterSpacing: '-3%'
+                }}
+              >
+                {content.subtitle2}
+              </div>
+            </>
+          )}
+          {content.subtitleFirst && (
+            <div 
+              className="mb-2"
+              style={{
+                fontFamily: 'Inter, sans-serif',
+                fontWeight: 500,
+                fontStyle: 'normal',
+                fontSize: '18px',
+                lineHeight: '137%',
+                letterSpacing: '-3%'
+              }}
+            >
+              {content.subtitle}
+            </div>
+          )}
+          <div className="flex items-center">
+            <div 
+              className="mr-2"
+              style={{
+                fontWeight: 700,
+                fontStyle: 'normal',
+                fontSize: '28px',
+                letterSpacing: '-3%'
+              }}
+            >
+              {content.title}
+            </div>
+            {content.showStars && (
+              <div className="flex">
+                {[...Array(5)].map((_, i) => (
+                  <svg
+                    key={i}
+                    className="w-5 h-5 text-[#71430C] fill-current"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M12 .587l3.668 7.568 8.332 1.151-6.064 5.828 1.48 8.279L12 18.896l-7.416 3.817 1.48-8.279L.001 9.306l8.332-1.151L12 .587z" />
+                  </svg>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="text-xl">
-            customers transformed their skin, right from the privacy of their home
-          </div>
+          {!content.subtitleFirst && !content.showWavingHand && (
+            <div 
+              style={{
+                fontFamily: 'Inter, sans-serif',
+                fontWeight: 500,
+                fontStyle: 'normal',
+                fontSize: '18px',
+                lineHeight: '137%',
+                letterSpacing: '-3%'
+              }}
+            >
+              {content.subtitle}
+            </div>
+          )}
         </div>
       </div>
     </ImageOverlay>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Heading } from './ui/heading';
@@ -9,6 +9,8 @@ interface UserInfoFormProps {
   onBack: () => void;
   isSubmitting?: boolean;
   errorMessage?: string | null;
+  initialValues?: UserInfo | null;
+  onUserInfoChange?: (userInfo: UserInfo) => void;
 }
 
 export interface UserInfo {
@@ -23,14 +25,45 @@ interface FormErrors {
   phone?: string;
 }
 
-export const UserInfoForm: React.FC<UserInfoFormProps> = ({ onNext, onBack, isSubmitting = false, errorMessage }) => {
+export const UserInfoForm: React.FC<UserInfoFormProps> = ({ 
+  onNext, 
+  onBack, 
+  isSubmitting = false, 
+  errorMessage,
+  initialValues,
+  onUserInfoChange
+}) => {
   const [formData, setFormData] = useState<UserInfo>({
-    name: '',
-    email: '',
-    phone: ''
+    name: initialValues?.name || '',
+    email: initialValues?.email || '',
+    phone: initialValues?.phone || ''
   });
   
   const [errors, setErrors] = useState<FormErrors>({});
+
+  // Update form data when initialValues change (e.g., when navigating back)
+  useEffect(() => {
+    if (initialValues) {
+      console.log('🔄 UserInfoForm: Updating form with initial values:', initialValues);
+      setFormData({
+        name: initialValues.name || '',
+        email: initialValues.email || '',
+        phone: initialValues.phone || ''
+      });
+      // Clear any existing errors when restoring values
+      setErrors({});
+    } else if (initialValues === null) {
+      // If explicitly null, reset to empty
+      console.log('🔄 UserInfoForm: Initial values are null, resetting form');
+      setFormData({
+        name: '',
+        email: '',
+        phone: ''
+      });
+      setErrors({});
+    }
+    // If undefined, keep current state (don't reset)
+  }, [initialValues]);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -64,11 +97,20 @@ export const UserInfoForm: React.FC<UserInfoFormProps> = ({ onNext, onBack, isSu
   };
 
   const handleInputChange = (field: keyof UserInfo, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    const newFormData = { ...formData, [field]: value };
+    setFormData(newFormData);
+    
     // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
     }
+    
+    // Also update the parent component's state as user types
+    // This ensures the data is saved to localStorage immediately
+    if (onUserInfoChange) {
+      onUserInfoChange(newFormData);
+    }
+    console.log('📝 UserInfoForm: Input changed, updating parent state:', newFormData);
   };
 
   const handlePhoneChange = (value: string) => {
@@ -115,14 +157,14 @@ export const UserInfoForm: React.FC<UserInfoFormProps> = ({ onNext, onBack, isSu
   return (
     <div className="min-h-screen flex flex-col">
         {/* Step Text */}
-        <div className="mb-12">
+        <div className="mb-8 text-center md:text-left">
           <StepText>STEP 4 OF 4</StepText>
           <Heading>Enter your details</Heading>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="max-w-lg w-full">
-          <div className="space-y-4 mb-12">
+          <div className="space-y-2 md:space-y-4 mb-12">
             {/* Name Field */}
             <div>
               
@@ -191,7 +233,8 @@ export const UserInfoForm: React.FC<UserInfoFormProps> = ({ onNext, onBack, isSu
           )}
 
           {/* Navigation Buttons */}
-          <div className="flex justify-start items-center gap-12">
+          <div className="max-w-lg w-full flex flex-col md:flex-row items-stretch md:items-center gap-4 md:gap-12">
+          
             <Button
               type="button"
               onClick={onBack}

@@ -7,6 +7,11 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   base: "./",
+  server: {
+    host: true, // Expose to local network
+    port: 5173, // Force port 5173
+    strictPort: true, // Fail if port is already in use
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

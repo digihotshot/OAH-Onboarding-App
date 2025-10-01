@@ -15,14 +15,13 @@ export const Heading: React.FC<HeadingProps> = ({
   return (
     <Component
       className={cn(
-        "font-normal text-[36px] leading-[137%] tracking-[0%] text-gray-900",
+        "font-normal text-[24px] md:text-[36px] leading-[137%] tracking-[0%] text-gray-900",
         className
       )}
       style={{
         fontFamily: 'DM Serif Display, serif',
         fontWeight: 400,
         fontStyle: 'normal',
-        fontSize: '36px',
         lineHeight: '137%',
         letterSpacing: '0%'
       }}
