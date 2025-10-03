@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { UserInfo } from './UserInfoForm';
 import { UniversalService } from '../hooks/useUniversalCategories';
 import { Button, OrangeButton } from './ui/button';
@@ -14,6 +14,9 @@ interface BookingConfirmationProps {
   selectedTime?: string;
   address: string;
   selectedProvider: Provider | null;
+  // NOTE: availableProviders now contains only providers that service the exact time slot
+  // (date + time), not just the date. This is controlled by FILTER_PROVIDERS_BY_TIME_SLOT
+  // flag in App.tsx. To revert to date-only filtering, set the flag to false.
   availableProviders?: Array<Provider & { bookingId: string; priority: number }>;
   onProviderChange?: (providerId: string) => void;
   onConfirm: () => void;
@@ -42,6 +45,44 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   onEditProvider,
   isConfirming = false,
 }) => {
+  // Track if we've already auto-selected a provider to prevent infinite loops
+  const hasAutoSelectedRef = useRef(false);
+
+  // Auto-select the highest priority provider (lowest priority number = highest priority)
+  useEffect(() => {
+    // Only auto-select if:
+    // 1. We haven't already auto-selected
+    // 2. No provider is currently selected
+    // 3. We have available providers
+    // 4. We have a callback to change the provider
+    if (
+      !hasAutoSelectedRef.current &&
+      !selectedProvider &&
+      availableProviders.length > 0 &&
+      onProviderChange
+    ) {
+      // Sort by priority (ascending) and take the first one (highest priority)
+      const sortedProviders = [...availableProviders].sort((a, b) => a.priority - b.priority);
+      const highestPriorityProvider = sortedProviders[0];
+      
+      console.log('🎯 Auto-selecting highest priority provider:', {
+        provider: highestPriorityProvider.name,
+        providerId: highestPriorityProvider.provider_id,
+        priority: highestPriorityProvider.priority,
+        bookingId: highestPriorityProvider.bookingId
+      });
+      
+      onProviderChange(highestPriorityProvider.provider_id);
+      hasAutoSelectedRef.current = true;
+    }
+  }, [selectedProvider, availableProviders, onProviderChange]);
+
+  // Reset the auto-selection flag when component unmounts or when we navigate away
+  useEffect(() => {
+    return () => {
+      hasAutoSelectedRef.current = false;
+    };
+  }, []);
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
       weekday: 'short',

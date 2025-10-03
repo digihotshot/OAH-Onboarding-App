@@ -16,7 +16,7 @@ import { Heading } from './components/ui/heading';
 import { StepText } from './components/ui/step-text';
 import { useOptimizedSlots } from './hooks/useOptimizedSlots';
 import { BottomLeftOverlay } from './components/ImageOverlay';
-import { bookingService, type ReservationRequest } from './services/bookingService';
+import { bookingService } from './services/bookingService';
 import { usePersistedBookingState } from './hooks/usePersistedBookingState';
 
 // Common wrapper component with navigation, main image, and content
@@ -86,6 +86,13 @@ const AppWrapper: React.FC<{ children: React.ReactNode; currentStep: number }> =
 };
 
 const App: React.FC = () => {
+  // ========== FEATURE FLAG ==========
+  // Set to true to filter providers by exact time slot (date + time)
+  // Set to false to filter providers by date only (original behavior)
+  // This allows easy rollback if needed
+  const FILTER_PROVIDERS_BY_TIME_SLOT = true;
+  // ==================================
+  
   // Persistence hook
   const { restoreState, saveState, clearState } = usePersistedBookingState();
   
@@ -146,7 +153,6 @@ const App: React.FC = () => {
     availableSlots,
     bookingMap,
     metadata: slotsMetadata,
-    dateAvailability,
     loading: isUnifiedCallLoading,
     refetch: fetchUnifiedSlots,
   } = useOptimizedSlots({
@@ -164,21 +170,65 @@ const App: React.FC = () => {
     if (!selectedDate || !selectedTime) return [];
     
     const isoDate = selectedDate.toISOString().split('T')[0];
-    const bookingsForDate = bookingMap.filter(booking => booking.date === isoDate);
     
-    // Map center IDs to provider objects
-    return bookingsForDate
-      .map(booking => {
-        const provider = availableProviders.find(p => p.provider_id === booking.centerId);
-        return provider ? {
-          ...provider,
-          bookingId: booking.bookingId,
-          priority: booking.priority
-        } : null;
-      })
-      .filter((provider): provider is NonNullable<typeof provider> => provider !== null)
-      .sort((a, b) => a.priority - b.priority); // Sort by priority
-  }, [selectedDate, selectedTime, bookingMap, availableProviders]);
+    if (FILTER_PROVIDERS_BY_TIME_SLOT) {
+      // NEW BEHAVIOR: Filter by exact time slot (date + time)
+      // Find the slot data for the selected date
+      const slotForDate = availableSlots.find(slot => slot.date === isoDate);
+      
+      if (!slotForDate || !slotForDate.centers) {
+        console.log('🔍 No slot data found for date:', isoDate);
+        return [];
+      }
+      
+      // Find which centers have slots for the selected time
+      const centersWithSelectedTime = slotForDate.centers
+        .filter(center => {
+          // Check if this center has a slot matching the selected time
+          return center.slots?.some(slot => slot.time === selectedTime);
+        })
+        .map(center => ({
+          centerId: center.id,
+          bookingId: center.bookingId,
+          priority: center.priority
+        }));
+      
+      console.log('🎯 Centers with selected time:', {
+        selectedTime,
+        centersFound: centersWithSelectedTime.length,
+        centerIds: centersWithSelectedTime.map(c => c.centerId)
+      });
+      
+      // Map center IDs to provider objects
+      return centersWithSelectedTime
+        .map(centerInfo => {
+          const provider = availableProviders.find(p => p.provider_id === centerInfo.centerId);
+          return provider ? {
+            ...provider,
+            bookingId: centerInfo.bookingId,
+            priority: centerInfo.priority
+          } : null;
+        })
+        .filter((provider): provider is NonNullable<typeof provider> => provider !== null)
+        .sort((a, b) => a.priority - b.priority); // Sort by priority
+    } else {
+      // ORIGINAL BEHAVIOR: Filter by date only
+      const bookingsForDate = bookingMap.filter(booking => booking.date === isoDate);
+      
+      // Map center IDs to provider objects
+      return bookingsForDate
+        .map(booking => {
+          const provider = availableProviders.find(p => p.provider_id === booking.centerId);
+          return provider ? {
+            ...provider,
+            bookingId: booking.bookingId,
+            priority: booking.priority
+          } : null;
+        })
+        .filter((provider): provider is NonNullable<typeof provider> => provider !== null)
+        .sort((a, b) => a.priority - b.priority); // Sort by priority
+    }
+  }, [selectedDate, selectedTime, bookingMap, availableProviders, availableSlots, FILTER_PROVIDERS_BY_TIME_SLOT]);
 
   // Remove the useEffect that sets serviceBookingId to bookingMap[0]
   // useEffect(() => {
@@ -647,6 +697,7 @@ const App: React.FC = () => {
         throw new Error('Center information is missing for guest creation.');
       }
 
+      // Only create guest - no select-provider or reserve calls
       const preparedGuestId = await bookingService.createGuest(
         userData,
         guestId ?? undefined,
@@ -659,200 +710,14 @@ const App: React.FC = () => {
 
       setGuestId(preparedGuestId);
       setUserInfo(userData);
-      setConfirmationDetails(null);
 
-      const isoDate = selectedDate.toISOString().split('T')[0];
-
-      const serviceIds = selectedServices
-        .map(service => service.id)
-        .filter((id): id is string => Boolean(id));
-
-      if (serviceIds.length === 0) {
-        throw new Error('At least one service must be selected to reserve a slot.');
-      }
-
-      const bookingsForDate = bookingMap.filter(booking => booking.date === isoDate);
-
-      if (bookingsForDate.length === 0) {
-        throw new Error('No booking data available for the selected date. Please restart the selection process.');
-      }
-
-      const uniqueCenters = Array.from(new Set(bookingsForDate.map(booking => booking.centerId)));
-
-      let finalBookingId = providerBookingId ?? selectedSlotInfo?.bookingId ?? null;
-      let finalCenterId = initialCenterId;
-      let finalPriority = selectedSlotInfo?.priority;
-      let finalServiceId = selectedSlotInfo?.serviceId ?? serviceIds[0];
-      let slotDetailsForReservation = selectedSlotInfo;
-
-      try {
-        const providerSelectionResult = await bookingService.selectProvider({
-          date: isoDate,
-          slotTime: selectedTime,
-          bookingId: finalBookingId ?? undefined,
-          centers: uniqueCenters,
-          services: serviceIds,
-          guestId: preparedGuestId,
-          bookings: bookingsForDate.map(booking => ({
-            centerId: booking.centerId,
-            centerName:
-              availableProviders.find(provider => provider.provider_id === booking.centerId)?.name ??
-              `Center ${booking.centerId}`,
-            bookingId: booking.bookingId,
-            success: true,
-          })),
-          dateAvailability: dateAvailability?.[isoDate], // Pass date availability for the selected date
-        });
-
-        const selectedProviderInfo = providerSelectionResult.data?.selectedProvider ?? null;
-        const rawSelectedProvider =
-          (providerSelectionResult.rawResponse as Record<string, any> | undefined)?.data?.selectedProvider ??
-          (providerSelectionResult.rawResponse as Record<string, any> | undefined)?.selectedProvider ??
-          undefined;
-        const rawData = providerSelectionResult.rawResponse as Record<string, any> | undefined;
-        const resolvedBookingId =
-          providerSelectionResult.bookingId ??
-          selectedProviderInfo?.bookingId ??
-          rawSelectedProvider?.booking_id ??
-          rawData?.data?.booking_id ??
-          rawData?.data?.bookingId ??
-          rawData?.booking_id ??
-          rawData?.bookingId ??
-          null;
-
-        if (!resolvedBookingId) {
-          throw new Error('Provider selection did not return a booking ID.');
-        }
-
-        const resolvedCenterFromSelection =
-          providerSelectionResult.selectedCenterId ??
-          selectedProviderInfo?.centerId ??
-          rawSelectedProvider?.center_id ??
-          rawData?.data?.center_id ??
-          rawData?.data?.centerId ??
-          rawData?.center_id ??
-          rawData?.centerId ??
-          finalCenterId;
-
-        finalBookingId = resolvedBookingId;
-        finalCenterId = resolvedCenterFromSelection ?? finalCenterId;
-
-        const bookingDetailsForCenter = bookingsForDate.find(booking => booking.centerId === finalCenterId);
-        const resolvedPriority = bookingDetailsForCenter?.priority ?? finalPriority ?? 999;
-        finalPriority = resolvedPriority;
-        finalServiceId = finalServiceId ?? serviceIds[0];
-
-        if (!finalBookingId) {
-          throw new Error('Provider selection did not return a booking ID.');
-        }
-
-        const updatedSlotDetails = {
-          bookingId: finalBookingId,
-          centerId: finalCenterId,
-          serviceId: finalServiceId,
-          priority: finalPriority,
-        };
-
-        slotDetailsForReservation = updatedSlotDetails;
-        setSelectedSlotInfo(updatedSlotDetails);
-        setProviderBookingId(finalBookingId);
-
-        if (finalCenterId) {
-          const matchedProvider = availableProviders.find(provider => provider.provider_id === finalCenterId);
-          setSelectedProvider(
-            matchedProvider ?? {
-              provider_id: finalCenterId,
-              name: `Center ${finalCenterId}`,
-              description: 'Selected based on priority',
-              address: '',
-              city: '',
-              state: '',
-              zipcode: '',
-              phone: '',
-            }
-          );
-        }
-      } catch (error) {
-        console.error('❌ Provider selection after guest creation failed:', error);
-        throw new Error(
-          error instanceof Error
-            ? error.message
-            : 'Unable to select provider for reservation. Please try again.'
-        );
-      }
-
-      if (!finalBookingId) {
-        throw new Error('Missing booking ID for reservation.');
-      }
-
-      const ensuredBookingId = finalBookingId;
-
-      if (!finalCenterId) {
-        throw new Error('Missing center information for reservation.');
-      }
-
-      const ensuredCenterId = finalCenterId;
-
-      if (!finalServiceId) {
-        throw new Error('Missing service information for reservation.');
-      }
-
-      const ensuredServiceId = finalServiceId;
-
-      const priorityForReservation = finalPriority ?? 999;
-
-      if (!slotDetailsForReservation) {
-        slotDetailsForReservation = {
-          bookingId: ensuredBookingId,
-          centerId: ensuredCenterId,
-          serviceId: ensuredServiceId,
-          priority: priorityForReservation,
-        };
-        setSelectedSlotInfo(slotDetailsForReservation);
-      }
-
-      const reservationRequest: ReservationRequest = {
-        bookingId: ensuredBookingId,
-        providerBookingId: ensuredBookingId,
-        userInfo: userData,
-        selectedServices: selectedServices.map(service => ({
-          id: service.id,
-          name: service.name,
-        })),
-        selectedDate: isoDate,
-        selectedTime,
-        date: isoDate,
-        time: selectedTime,
-        address,
-        zipCode,
-        centerId: ensuredCenterId,
-        slotPriority: priorityForReservation,
-        serviceIds,
-        guestId: preparedGuestId,
-      };
-
-      const response = await bookingService.reserveSlot(reservationRequest);
-
-      if (!response.success) {
-        throw new Error(response.message || 'Reservation failed.');
-      }
-
-      setConfirmationDetails({
-        bookingId: response.bookingId,
-        confirmationNumber: response.confirmationNumber,
-      });
-      if (response.guestId) {
-        setGuestId(response.guestId);
-      } else if (response.guest?.id) {
-        setGuestId(response.guest.id);
-      }
-
+      // Move to next step (booking confirmation)
       setCurrentStep(5);
     } catch (error) {
-      console.error('❌ Reservation failed:', error);
+      console.error('❌ Guest creation failed:', error);
       
       // Check for duplicate mobile number error
-      let message = 'Unable to reserve your appointment. Please try again.';
+      let message = 'Unable to create guest profile. Please try again.';
       
       if (error instanceof Error) {
         try {
@@ -877,14 +742,14 @@ const App: React.FC = () => {
       }
       
       setReservationError(message);
-      alert(`Reservation failed: ${message}`);
+      alert(`Failed: ${message}`);
     } finally {
       setIsReserving(false);
     }
   };
 
   const handleBookingConfirm = async () => {
-    if (!userInfo || !confirmationDetails?.bookingId) {
+    if (!userInfo || !selectedProvider || !selectedDate || !selectedTime || !guestId) {
       alert('Booking information is missing. Please go back and try again.');
       return;
     }
@@ -892,34 +757,93 @@ const App: React.FC = () => {
     setIsConfirming(true);
 
     try {
-      console.log('📋 Confirming booking with ID:', confirmationDetails.bookingId);
+      console.log('📋 Step 1: Calling select-provider endpoint');
+      console.log('📋 Selected provider:', selectedProvider);
       
-      // Call the confirmation API endpoint: POST /api/bookings/:bookingId/confirm
-      const confirmationResult = await bookingService.confirmBooking(confirmationDetails.bookingId);
+      // Step 1: Call select-provider endpoint with selected provider, guest_id, and service IDs
+      const dateString = selectedDate.toISOString().split('T')[0];
+      const serviceIds = selectedServices.map(service => service.id);
       
-      if (confirmationResult.success) {
-        console.log('✅ Booking confirmed successfully:', confirmationResult);
-        
-        // Update confirmation details with final confirmation info
-        setConfirmationDetails(prev => ({
-          ...prev,
-          confirmationNumber: confirmationResult.confirmationNumber || prev?.confirmationNumber,
-          bookingId: confirmationResult.bookingId || prev?.bookingId
-        }));
-        
-        // Clear persisted state since booking is complete
-        clearState();
-        console.log('🗑️ Cleared persisted state after successful booking confirmation');
-        
-        // Move to final confirmation page
-        setCurrentStep(6);
-      } else {
-        throw new Error(confirmationResult.message || 'Booking confirmation failed');
+      // Construct dateAvailability object with the selected center_id
+      const dateAvailability = {
+        center_ids: [selectedProvider.provider_id],
+        date: dateString
+      };
+      
+      const providerSelectionResult = await bookingService.selectProvider({
+        date: dateString,
+        slotTime: selectedTime,
+        centerId: selectedProvider.provider_id,
+        centers: [selectedProvider.provider_id],
+        services: serviceIds,
+        guestId: guestId,
+        bookings: [],
+        dateAvailability: dateAvailability
+      });
+      
+      if (!providerSelectionResult.success || !providerSelectionResult.bookingId) {
+        throw new Error(providerSelectionResult.message || 'Failed to select provider');
       }
       
+      const bookingId = providerSelectionResult.bookingId;
+      console.log('✅ Step 1 complete: Provider selected, booking ID:', bookingId);
+      
+      // Step 2: Call reserve endpoint with the booking_id
+      console.log('📋 Step 2: Calling reserve endpoint with booking ID:', bookingId);
+      
+      const reservationResult = await bookingService.reserveSlot({
+        providerBookingId: bookingId,
+        userInfo: {
+          name: userInfo.name,
+          email: userInfo.email,
+          phone: userInfo.phone
+        },
+        selectedServices: selectedServices.map(service => ({
+          id: service.id,
+          name: service.name
+        })),
+        selectedDate: dateString,
+        selectedTime: selectedTime,
+        address: address,
+        zipCode: zipCode,
+        guestId: guestId
+      });
+      
+      if (!reservationResult.success) {
+        throw new Error(reservationResult.message || 'Reservation failed');
+      }
+      
+      console.log('✅ Step 2 complete: Slot reserved successfully');
+      console.log('✅ Reservation details:', reservationResult);
+      
+      // Step 3: Call confirm endpoint with the booking ID
+      console.log('📋 Step 3: Calling confirm endpoint with booking ID:', bookingId);
+      
+      const confirmationResult = await bookingService.confirmBooking(bookingId);
+      
+      if (!confirmationResult.success) {
+        throw new Error(confirmationResult.message || 'Confirmation failed');
+      }
+      
+      console.log('✅ Step 3 complete: Booking confirmed successfully');
+      console.log('✅ Confirmation details:', confirmationResult);
+      
+      // Step 4: Update confirmation details and move to final confirmation
+      setConfirmationDetails({
+        confirmationNumber: confirmationResult.confirmationNumber || reservationResult.confirmationNumber,
+        bookingId: confirmationResult.bookingId || reservationResult.bookingId || bookingId
+      });
+      
+      // Clear persisted state since booking is complete
+      clearState();
+      console.log('🗑️ Cleared persisted state after successful booking');
+      
+      // Move to final confirmation page
+      setCurrentStep(6);
+      
     } catch (error) {
-      console.error('❌ Confirmation failed:', error);
-      alert(`Confirmation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('❌ Booking confirmation failed:', error);
+      alert(`Booking failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsConfirming(false);
     }

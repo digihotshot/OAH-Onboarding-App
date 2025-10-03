@@ -104,6 +104,7 @@ interface ProviderSelectionRequest {
   centers: string[];
   services: string[];
   guestId?: string;
+  centerId?: string; // Specific center/provider ID to select
   bookings: Array<{
     centerId: string;
     centerName: string;
@@ -308,11 +309,12 @@ export class BookingService {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            slotTime: request.slotTime,
+            slot_time: request.slotTime,
             date: request.date,
-            serviceIds: request.services,
+            service_ids: request.services,
             guest_id: request.guestId,
-            dateAvailability: request.dateAvailability
+            center_id: request.centerId,
+            date_availability: request.dateAvailability
           }),
         });
 
