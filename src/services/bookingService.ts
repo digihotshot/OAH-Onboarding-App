@@ -526,19 +526,37 @@ export class BookingService {
 
   /**
    * Confirm a booking using the booking ID
+   * According to Zenoti documentation, only accepts:
+   * - notes: Any notes added by the guest (optional)
+   * - group_name: Name of the group appointment for group bookings (optional)
    */
-  async confirmBooking(bookingId: string): Promise<ReservationResponse> {
+  async confirmBooking(bookingId: string, options?: {
+    notes?: string;
+    group_name?: string;
+  }): Promise<ReservationResponse> {
     const url = `${this.API_BASE_URL}/bookings/${bookingId}/confirm`;
     
     for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
       try {
         console.log(`🔄 Confirmation attempt ${attempt + 1}/${this.MAX_RETRIES} for booking ${bookingId}`);
         
+        // Only send notes and group_name if provided (both are optional)
+        const requestBody: { notes?: string; group_name?: string } = {};
+        if (options?.notes) {
+          requestBody.notes = options.notes;
+        }
+        if (options?.group_name) {
+          requestBody.group_name = options.group_name;
+        }
+        
+        console.log('📤 Sending confirmation request with body:', JSON.stringify(requestBody, null, 2));
+        
         const response = await fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
+          body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {

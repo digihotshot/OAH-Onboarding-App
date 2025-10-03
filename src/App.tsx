@@ -817,6 +817,7 @@ const App: React.FC = () => {
       console.log('✅ Reservation details:', reservationResult);
       
       // Step 3: Call confirm endpoint with the booking ID
+      // According to Zenoti documentation, only accepts optional notes and group_name fields
       console.log('📋 Step 3: Calling confirm endpoint with booking ID:', bookingId);
       
       const confirmationResult = await bookingService.confirmBooking(bookingId);
