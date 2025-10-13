@@ -50,14 +50,14 @@ export const ProviderDropdown: React.FC<ProviderDropdownProps> = ({
         onClick={toggleDropdown}
         disabled={disabled}
         className={`
-          inline-flex items-center text-[#8B4513] font-medium 
+          inline-flex items-center text-[#71430C]  
           hover:opacity-80 transition-opacity duration-200
           ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         `}
       >
         <span>Change Provider</span>
         <svg
-          className={`w-5 h-5 ml-1 transition-transform duration-200 ${
+          className={`w-5 h-5  transition-transform duration-200 ${
             isOpen ? 'rotate-180' : ''
           }`}
           fill="currentColor"
