@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ServerAddressInput } from './components/ServerAddressInput';
 import { validateZipCode, ValidationResult } from './utils/zipCodeValidation';
 import { useMiddlewareProviders } from './hooks/useMiddlewareProviders';
-import { useUniversalCategories, UniversalService } from './hooks/useUniversalCategories';
+import { useUniversalCategories, UniversalAddOn, UniversalService } from './hooks/useUniversalCategories';
 import { Provider } from './types/middleware';
 import { CategoryAccordion } from './components/CategoryAccordion';
 import { PricingCalculator } from './components/PricingCalculator';
@@ -16,8 +16,62 @@ import { Heading } from './components/ui/heading';
 import { StepText } from './components/ui/step-text';
 import { useOptimizedSlots } from './hooks/useOptimizedSlots';
 import { BottomLeftOverlay } from './components/ImageOverlay';
-import { bookingService } from './services/bookingService';
+import { bookingService, GuestAuthStatus } from './services/bookingService';
 import { usePersistedBookingState } from './hooks/usePersistedBookingState';
+import { GuestCheckModal } from './components/GuestCheckModal';
+
+const normalizeGuest = (
+  guest: any,
+  fallback: { email?: string; phone?: string }
+): { id: string | null; name: string; email: string; phone: string } => {
+  const candidate = guest || {};
+  const email =
+    candidate.email ||
+    candidate.personal_info?.email ||
+    candidate.contact?.email ||
+    fallback.email ||
+    '';
+  const phone =
+    candidate.phone ||
+    candidate.personal_info?.mobile_phone?.number ||
+    candidate.contact?.phone ||
+    fallback.phone ||
+    '';
+  const firstName =
+    candidate.firstName ||
+    candidate.first_name ||
+    candidate.personal_info?.first_name ||
+    candidate.contact?.first_name ||
+    '';
+  const lastName =
+    candidate.lastName ||
+    candidate.last_name ||
+    candidate.personal_info?.last_name ||
+    candidate.contact?.last_name ||
+    '';
+  const nameFromParts = [firstName, lastName].filter(Boolean).join(' ').trim();
+  const name = nameFromParts || email || phone || 'Guest';
+  const id =
+    candidate.id ||
+    candidate.Id ||
+    candidate.ID ||
+    candidate.guest_id ||
+    candidate.guestId ||
+    candidate.GuestId ||
+    candidate.GuestID ||
+    candidate.data?.guestId ||
+    candidate.data?.guest_id ||
+    candidate.personal_info?.guest_id ||
+    candidate.personal_info?.guestId ||
+    null;
+
+  return {
+    id: typeof id === 'string' ? id : null,
+    name,
+    email,
+    phone,
+  };
+};
 
 // Common wrapper component with navigation, main image, and content
 const AppWrapper: React.FC<{ children: React.ReactNode; currentStep: number }> = ({ children, currentStep }) => {
@@ -106,9 +160,21 @@ const App: React.FC = () => {
   
   // Category selection state
   const [selectedServices, setSelectedServices] = useState<UniversalService[]>([]);
+  const [selectedAddOns, setSelectedAddOns] = useState<Record<string, UniversalAddOn[]>>({});
   
   // User information state
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [guestVerification, setGuestVerification] = useState<{
+    email?: string;
+    phone?: string;
+    status: GuestAuthStatus;
+    guest?: unknown;
+    message?: string;
+  } | null>(null);
+  const [isGuestCheckModalOpen, setIsGuestCheckModalOpen] = useState(false);
+  const [isGuestCheckSubmitting, setIsGuestCheckSubmitting] = useState(false);
+  const [guestCheckError, setGuestCheckError] = useState<string | null>(null);
+  const [guestCheckDismissed, setGuestCheckDismissed] = useState(false);
   
   // Selected provider state
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
@@ -140,6 +206,7 @@ const App: React.FC = () => {
 
   const isMountedRef = useRef(true);
   const hasRestoredStateRef = useRef(false);
+  const guestCheckTimerRef = useRef<number | null>(null);
 
   const transformedSelectedServices = useMemo(() => 
     selectedServices.map(service => ({
@@ -261,13 +328,15 @@ const App: React.FC = () => {
       
       // Restore date from ISO string
       if (restoredState.selectedDate) {
-        setSelectedDate(new Date(restoredState.selectedDate));
+      setSelectedDate(new Date(restoredState.selectedDate));
       }
       
       setSelectedTime(restoredState.selectedTime);
       setSelectedServices(restoredState.selectedServices || []);
+      setSelectedAddOns(restoredState.selectedAddOns || {});
       setUserInfo(restoredState.userInfo || null);
       console.log('🔄 Restored userInfo:', restoredState.userInfo);
+      setGuestVerification(restoredState.guestVerification ?? null);
       setSelectedProvider(restoredState.selectedProvider || null);
       setSelectedSlotInfo(restoredState.selectedSlotInfo || null);
       setProviderBookingId(restoredState.providerBookingId || null);
@@ -299,7 +368,9 @@ const App: React.FC = () => {
       selectedDate: selectedDate ? selectedDate.toISOString() : null,
       selectedTime,
       selectedServices,
+      selectedAddOns,
       userInfo,
+      guestVerification,
       selectedProvider,
       selectedSlotInfo,
       providerBookingId,
@@ -313,13 +384,94 @@ const App: React.FC = () => {
     selectedDate,
     selectedTime,
     selectedServices,
+    selectedAddOns,
     userInfo,
+    guestVerification,
     selectedProvider,
     selectedSlotInfo,
     providerBookingId,
     guestId,
     saveState,
   ]);
+
+  useEffect(() => {
+    const clearTimer = () => {
+      if (guestCheckTimerRef.current !== null) {
+        clearTimeout(guestCheckTimerRef.current);
+        guestCheckTimerRef.current = null;
+      }
+    };
+
+    if (currentStep !== 1) {
+      clearTimer();
+      setIsGuestCheckModalOpen(false);
+      return undefined;
+    }
+
+    if (guestVerification?.status === 'authenticated' || guestCheckDismissed) {
+      clearTimer();
+      return undefined;
+    }
+
+    clearTimer();
+    guestCheckTimerRef.current = window.setTimeout(() => {
+      setGuestCheckError(null);
+      setIsGuestCheckModalOpen(true);
+      setGuestCheckDismissed(false);
+    }, 2000);
+
+    return () => {
+      clearTimer();
+    };
+  }, [currentStep, guestVerification?.status, guestCheckDismissed]);
+
+  const handleGuestCheckClose = () => {
+    setIsGuestCheckModalOpen(false);
+    setGuestCheckDismissed(true);
+    setGuestCheckError(null);
+  };
+
+  const handleGuestCheckSubmit = async ({ email, phone }: { email?: string; phone?: string }) => {
+    setGuestCheckError(null);
+    setIsGuestCheckSubmitting(true);
+
+    try {
+      console.log('🔍 Guest check: verifying guest credentials', { email, phone });
+
+      const response = await bookingService.searchGuest({ email, phone });
+
+      const nextState = {
+        email,
+        phone,
+        status: response.status,
+        guest: response.guest ?? undefined,
+        message: response.message,
+      } as const;
+
+      setGuestVerification(nextState);
+
+      if (response.status === 'authenticated') {
+        const normalized = normalizeGuest(response.guest, { email, phone });
+        if (normalized.id) {
+          setGuestId(normalized.id);
+        }
+        setUserInfo({
+          name: normalized.name,
+          email: normalized.email,
+          phone: normalized.phone,
+        });
+        setIsGuestCheckModalOpen(false);
+        setGuestCheckDismissed(false);
+      } else {
+        setGuestCheckError(response.message || 'Guest not found. Please continue with booking.');
+      }
+    } catch (error) {
+      console.error('❌ Guest check failed:', error);
+      setGuestCheckError(error instanceof Error ? error.message : 'Failed to verify guest. Please try again.');
+    } finally {
+      setIsGuestCheckSubmitting(false);
+    }
+  };
 
   // Auto-refetch slots when entering Step 3 (calendar) with selected services but no slot data
   useEffect(() => {
@@ -413,7 +565,8 @@ const App: React.FC = () => {
     }
 
     // Reset selected services when provider set changes
-    setSelectedServices([]);
+      setSelectedServices([]);
+      setSelectedAddOns({});
     
     // Select the first provider (highest priority) when providers are available
     if (availableProviders.length > 0) {
@@ -613,7 +766,11 @@ const App: React.FC = () => {
       );
       
       // Proceed to next step
-      setCurrentStep(4);
+      if (guestVerification?.status === 'authenticated' && guestId) {
+        setCurrentStep(5);
+      } else {
+        setCurrentStep(4);
+      }
       
     } catch (error) {
       console.error('❌ Provider selection failed:', error);
@@ -632,12 +789,46 @@ const App: React.FC = () => {
     setSelectedServices(prev => {
       const isSelected = prev.some(s => s.id === service.id);
       if (isSelected) {
-        // Remove service if already selected
+        setSelectedAddOns(current => {
+          if (!current[service.id]) {
+            return current;
+          }
+          const { [service.id]: _removed, ...rest } = current;
+          return rest;
+        });
         return prev.filter(s => s.id !== service.id);
       } else {
-        // Add service if not selected
+        const alreadyExists = prev.some(existing => existing.id === service.id);
+        if (alreadyExists) {
+          return prev;
+        }
         return [...prev, service];
       }
+    });
+  };
+
+  const handleAddOnToggle = (
+    service: UniversalService,
+    addOn: UniversalAddOn,
+    isCurrentlySelected: boolean
+  ) => {
+    setSelectedAddOns(prev => {
+      const currentAddOns = prev[service.id] || [];
+      let updatedForService: UniversalAddOn[];
+
+      if (isCurrentlySelected) {
+        updatedForService = currentAddOns.filter(item => item.id !== addOn.id);
+      } else {
+        updatedForService = [...currentAddOns, addOn];
+      }
+
+      const nextState = { ...prev };
+      if (updatedForService.length === 0) {
+        delete nextState[service.id];
+      } else {
+        nextState[service.id] = updatedForService;
+      }
+      return nextState;
     });
   };
 
@@ -898,6 +1089,16 @@ const App: React.FC = () => {
             </Button>
           </div>
         </div>
+
+        <GuestCheckModal
+          isOpen={isGuestCheckModalOpen}
+          onClose={handleGuestCheckClose}
+          onSubmit={handleGuestCheckSubmit}
+          isSubmitting={isGuestCheckSubmitting}
+          initialEmail={guestVerification?.email}
+          initialPhone={guestVerification?.phone}
+          error={guestCheckError}
+        />
       </AppWrapper>
     );
   }
@@ -917,8 +1118,8 @@ const App: React.FC = () => {
           {/* Categories and Services List */}
           <div className="max-w-4xl w-full mb-8">
             {universalCategoriesError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                <p className="text-red-700">Error loading categories: {universalCategoriesError}</p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <p className="text-red-700">Error loading categories: {universalCategoriesError}</p>
             </div>
           )}
 
@@ -926,7 +1127,9 @@ const App: React.FC = () => {
               categories={universalCategories}
               categoryServices={categoryServices}
               selectedServices={selectedServices}
+              selectedAddOns={selectedAddOns}
               onServiceSelect={handleServiceSelect}
+              onAddOnToggle={handleAddOnToggle}
               isLoading={universalCategoriesLoading}
             />
             
@@ -934,7 +1137,10 @@ const App: React.FC = () => {
 
           {/* Pricing Calculator */}
           <div className="max-w-4xl mb-12 w-full">
-            <PricingCalculator selectedServices={selectedServices} />
+            <PricingCalculator
+              selectedServices={selectedServices}
+              selectedAddOns={selectedAddOns}
+            />
             </div>
 
           {/* Navigation Buttons */}
@@ -1063,6 +1269,7 @@ const App: React.FC = () => {
         <BookingConfirmation
           userInfo={userInfo!}
           selectedServices={selectedServices}
+          selectedAddOns={selectedAddOns}
           selectedDate={selectedDate}
           selectedTime={selectedTime}
           address={address}
@@ -1075,8 +1282,8 @@ const App: React.FC = () => {
           onEditTreatment={() => setCurrentStep(2)}
           onEditDateTime={() => setCurrentStep(3)}
           onEditProvider={() => setCurrentStep(1)}
-          onSkipToFinal={() => setCurrentStep(6)}
           isConfirming={isConfirming}
+          guestVerification={guestVerification}
         />
       </AppWrapper>
     );

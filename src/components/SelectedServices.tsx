@@ -1,15 +1,21 @@
 import React from 'react';
-import { UniversalService } from '../hooks/useUniversalCategories';
+import { UniversalAddOn, UniversalService } from '../hooks/useUniversalCategories';
 
 interface SelectedServicesProps {
   selectedServices: UniversalService[];
+  selectedAddOns: Record<string, UniversalAddOn[]>;
 }
 
 export const SelectedServices: React.FC<SelectedServicesProps> = ({
-  selectedServices
+  selectedServices,
+  selectedAddOns
 }) => {
-  // Calculate total price
-  const totalPrice = selectedServices.reduce((sum, service) => sum + service.price, 0);
+  // Calculate totals
+  const servicesTotal = selectedServices.reduce((sum, service) => sum + service.price, 0);
+  const addOnsTotal = Object.values(selectedAddOns)
+    .flat()
+    .reduce((sum, addOn) => sum + addOn.price, 0);
+  const totalPrice = servicesTotal + addOnsTotal;
 
   // Format price for display
   const formatPrice = (price: number) => {
@@ -35,16 +41,36 @@ export const SelectedServices: React.FC<SelectedServicesProps> = ({
         </div>
         
         {/* Service Rows */}
-        {selectedServices.map((service) => (
-          <div key={service.id} className="flex justify-between items-center py-2 border-b border-gray-200">
-            <span className="text-gray-900">
-              {service.name}
-            </span>
-            <span className="text-gray-900 font-medium">
-              {formatPrice(service.price)}
-            </span>
-          </div>
-        ))}
+        {selectedServices.map((service) => {
+          const addOnsForService = selectedAddOns[service.id] ?? [];
+          return (
+            <div key={service.id} className="py-2 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-900">
+                  {service.name}
+                </span>
+                <span className="text-gray-900 font-medium">
+                  {formatPrice(service.price)}
+                </span>
+              </div>
+
+              {addOnsForService.length > 0 && (
+                <div className="mt-2 space-y-2 border-l border-[#C2A88F40] pl-4 ml-2">
+                  {addOnsForService.map(addOn => (
+                    <div key={addOn.id} className="flex justify-between items-center">
+                      <span className="text-sm text-gray-800">
+                        {addOn.name}
+                      </span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {formatPrice(addOn.price)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
         
         {/* Total Row */}
         <div className="flex justify-between items-center py-3 border-t-2 border-gray-400">

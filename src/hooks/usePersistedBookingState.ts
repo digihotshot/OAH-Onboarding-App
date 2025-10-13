@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { UniversalService } from './useUniversalCategories';
+import { UniversalAddOn, UniversalService } from './useUniversalCategories';
 import { UserInfo } from '../components/UserInfoForm';
 import { Provider } from '../types/middleware';
 import { ValidationResult } from '../utils/zipCodeValidation';
@@ -16,7 +16,15 @@ export interface PersistedBookingState {
   selectedDate: string | null; // ISO string
   selectedTime: string | undefined;
   selectedServices: UniversalService[];
+  selectedAddOns: Record<string, UniversalAddOn[]>;
   userInfo: UserInfo | null;
+  guestVerification?: {
+    email?: string;
+    phone?: string;
+    status: 'authenticated' | 'unauthenticated';
+    guest?: unknown;
+    message?: string;
+  } | null;
   selectedProvider: Provider | null;
   selectedSlotInfo: {
     bookingId: string;
@@ -49,13 +57,23 @@ export const saveBookingState = (state: Partial<PersistedBookingState>): void =>
   }
 
   try {
-    const currentState = loadBookingState();
+    const currentState = loadBookingState() || ({} as PersistedBookingState);
     const newState: PersistedBookingState = {
       version: STORAGE_VERSION,
       ...currentState,
       ...state,
       timestamp: Date.now(),
     };
+
+    newState.selectedAddOns =
+      state.selectedAddOns ?? currentState.selectedAddOns ?? {};
+    if (state.guestVerification === null) {
+      newState.guestVerification = null;
+    } else if (state.guestVerification) {
+      newState.guestVerification = state.guestVerification;
+    } else if (!newState.guestVerification && currentState.guestVerification) {
+      newState.guestVerification = currentState.guestVerification;
+    }
     
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
     console.log('💾 Booking state saved:', {
@@ -104,6 +122,10 @@ export const loadBookingState = (): PersistedBookingState | null => {
       hasDate: !!parsed.selectedDate,
       hasUserInfo: !!parsed.userInfo,
     });
+
+    if (!parsed.selectedAddOns || typeof parsed.selectedAddOns !== 'object') {
+      parsed.selectedAddOns = {};
+    }
 
     return parsed;
   } catch (error) {

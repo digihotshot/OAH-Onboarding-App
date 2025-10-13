@@ -322,6 +322,7 @@ export const Calendar: React.FC<CalendarProps> = ({
 
 
   const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const hasAvailableSlots = availableSlots.some(slot => slot.hasSlots);
 
   return (
     <div className="overflow-hidden">
@@ -398,6 +399,21 @@ export const Calendar: React.FC<CalendarProps> = ({
               </div>
             ))}
           </div>
+
+          {!isLoading && !hasAvailableSlots && (
+            <div
+              className="w-full mb-4 rounded border border-amber-200 bg-amber-50 p-4 text-amber-800"
+              style={{
+                fontFamily: 'Work Sans',
+                fontWeight: 500,
+                fontSize: '16px',
+                lineHeight: '137%',
+                letterSpacing: '0%'
+              }}
+            >
+              We don't have slots for selected services. Please select another service.
+            </div>
+          )}
 
           {/* Calendar grid */}
           <div className={`w-full grid grid-cols-7 gap-2 ${isLoading ? 'blur-sm' : ''}`}>

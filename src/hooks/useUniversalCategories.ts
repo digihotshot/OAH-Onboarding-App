@@ -10,6 +10,15 @@ export interface UniversalCategory {
   description?: string;
 }
 
+export interface UniversalAddOn {
+  id: string;
+  name: string;
+  description?: string;
+  duration?: number;
+  price: number;
+  code?: string;
+}
+
 export interface UniversalService {
   id: string;
   name: string;
@@ -18,6 +27,9 @@ export interface UniversalService {
   price: number;
   category: string;
   centerIds: string[];
+  code?: string;
+  addOns?: UniversalAddOn[];
+  hasAddOns?: boolean;
 }
 
 interface Service {
@@ -28,6 +40,16 @@ interface Service {
   price: number;
   code: string;
   available_centers: string[];
+  add_ons?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    duration?: number;
+    price?: number;
+    code?: string;
+  }>;
+  add_ons_list?: Array<string>;
+  has_add_ons?: boolean;
 }
 
 interface CategoryWithServices {
@@ -107,15 +129,33 @@ export const useUniversalCategories = (centerIds: string[]) => {
           // Map services for each category
           const mappedCategoryServices: Record<string, UniversalService[]> = {};
           data.data.categories.forEach(cat => {
-            mappedCategoryServices[cat.category_id] = cat.services.map(service => ({
-              id: service.id,
-              name: service.name,
-              description: service.description,
-              duration: service.duration,
-              price: service.price,
-              category: cat.category_name,
-              centerIds: service.available_centers
-            }));
+            mappedCategoryServices[cat.category_id] = cat.services.map(service => {
+              const addOns = Array.isArray(service.add_ons)
+                ? service.add_ons
+                    .filter(addOn => addOn && typeof addOn === 'object')
+                    .map(addOn => ({
+                      id: addOn.id,
+                      name: addOn.name,
+                      description: addOn.description || undefined,
+                      duration: typeof addOn.duration === 'number' ? addOn.duration : undefined,
+                      price: typeof addOn.price === 'number' ? addOn.price : 0,
+                      code: addOn.code || undefined
+                    }))
+                : [];
+
+              return {
+                id: service.id,
+                name: service.name,
+                description: service.description,
+                duration: service.duration,
+                price: service.price,
+                category: cat.category_name,
+                centerIds: service.available_centers,
+                code: service.code,
+                addOns,
+                hasAddOns: service.has_add_ons || addOns.length > 0
+              } satisfies UniversalService;
+            });
           });
           
           console.log(`✅ Found ${mappedCategories.length} categories with services:`, 

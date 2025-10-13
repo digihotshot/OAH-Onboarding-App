@@ -1,15 +1,17 @@
 import React, { useEffect, useRef } from 'react';
 import { UserInfo } from './UserInfoForm';
-import { UniversalService } from '../hooks/useUniversalCategories';
+import { UniversalAddOn, UniversalService } from '../hooks/useUniversalCategories';
 import { Button, OrangeButton } from './ui/button';
 import { Heading } from './ui/heading';
 import { StepText } from './ui/step-text';
 import { Provider } from '../types/middleware';
 import { ProviderDropdown } from './ui/provider-dropdown';
+import { GuestAuthStatus } from '../services/bookingService';
 
 interface BookingConfirmationProps {
   userInfo: UserInfo;
   selectedServices: UniversalService[];
+  selectedAddOns?: Record<string, UniversalAddOn[]>;
   selectedDate?: Date;
   selectedTime?: string;
   address: string;
@@ -25,12 +27,19 @@ interface BookingConfirmationProps {
   onEditTreatment: () => void;
   onEditDateTime: () => void;
   onEditProvider: () => void;
-  onSkipToFinal?: () => void; // Temporary prop for testing
   isConfirming?: boolean;
+  guestVerification?: {
+    status: GuestAuthStatus;
+    email?: string;
+    phone?: string;
+    guest?: unknown;
+    message?: string;
+  } | null;
 }
 
 export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   selectedServices,
+  selectedAddOns = {},
   selectedDate,
   selectedTime,
   address,
@@ -44,6 +53,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   onEditDateTime,
   onEditProvider,
   isConfirming = false,
+  guestVerification = null,
 }) => {
   // Track if we've already auto-selected a provider to prevent infinite loops
   const hasAutoSelectedRef = useRef(false);
@@ -109,6 +119,26 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
           <Heading>Booking Summary</Heading>
         </div>
 
+        {guestVerification && (
+          <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+            <p className="text-sm font-medium text-gray-700">Guest Status</p>
+            <p className="text-sm text-gray-600">
+              {guestVerification.status === 'authenticated'
+                ? 'We found an existing guest profile matching the details provided.'
+                : guestVerification.status === 'unauthenticated'
+                  ? guestVerification.message || 'No existing guest profile was found. We will create a new one when you continue.'
+                  : null}
+            </p>
+            {(guestVerification.email || guestVerification.phone) && (
+              <p className="mt-2 text-xs text-gray-500">
+                {guestVerification.email && <span>Email: {guestVerification.email}</span>}
+                {guestVerification.email && guestVerification.phone && <span className="mx-2">•</span>}
+                {guestVerification.phone && <span>Phone: {guestVerification.phone}</span>}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Booking Summary */}
         <div className="max-w-2xl w-full mb-8">
             <div className="bg-white   border border-[#C2A88F80] overflow-hidden">
@@ -120,7 +150,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                     {/* Provider Image */}
                     <div className="w-16 h-16 bg-[#F5F1ED] rounded-full flex items-center justify-center flex-shrink-0">
                       {selectedProvider ? (
-                        <div className="w-12 h-12 bg-[#C2A88F] rounded-full flex items-center justify-center">
+                    <div className="w-12 h-12 bg-[#C2A88F] rounded-full flex items-center justify-center">
                           <span className="text-white font-semibold text-lg">
                             {selectedProvider.name.charAt(0)}
                           </span>
@@ -177,11 +207,22 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                  <div className="flex-1">
                    <p className="text-sm text-gray-500">Treatment</p>
                    <div className="space-y-1">
-                     {selectedServices.length > 0 ? (
-                       selectedServices.map((service, index) => (
-                         <p key={index} className="font-medium text-gray-900">
-                           {service.name}
-                         </p>
+                    {selectedServices.length > 0 ? (
+                      selectedServices.map((service) => (
+                         <div key={service.id} className="space-y-2">
+                           <p className="font-medium text-gray-900">
+                             {service.name}
+                           </p>
+                           {(selectedAddOns[service.id]?.length ?? 0) > 0 && (
+                             <div className="space-y-1 border-l border-[#C2A88F40] pl-3 ml-2">
+                               {selectedAddOns[service.id]!.map(addOn => (
+                                 <p key={addOn.id} className="text-sm text-gray-800">
+                                   {addOn.name}
+                                 </p>
+                               ))}
+                             </div>
+                           )}
+                         </div>
                        ))
                      ) : (
                        <p className="font-medium text-gray-500">No services selected</p>

@@ -145,11 +145,79 @@ interface ProviderSelectionResponse {
   rawResponse?: unknown;
 }
 
+export type GuestAuthStatus = 'authenticated' | 'unauthenticated';
+
+export interface GuestSearchRequest {
+  email?: string;
+  phone?: string;
+}
+
+export interface GuestSearchResponse<TGuest = any> {
+  status: GuestAuthStatus;
+  guest: TGuest | null;
+  raw: unknown;
+  message?: string;
+}
+
 export class BookingService {
   private readonly API_BASE_URL = API_CONFIG.BASE_URL;
   private readonly MAX_RETRIES = 3;
   private readonly RETRY_DELAYS = [1000];
   private cachedGuestId: string | null = null;
+
+  async searchGuest<TGuest = any>(request: GuestSearchRequest): Promise<GuestSearchResponse<TGuest>> {
+    const { email, phone } = request;
+
+    if (!email && !phone) {
+      throw new Error('Either email or phone must be provided to search guest.');
+    }
+
+    const payload = {
+      ...(email ? { email } : {}),
+      ...(phone ? { phone } : {}),
+    };
+
+    const url = `${this.API_BASE_URL}/search-guest`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData?.message || errorData?.error || errorMessage;
+        } catch {
+          /* ignore JSON parse error */
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+
+      const normalizedGuest = this.extractGuestFromResponse<TGuest>(data);
+      const status = this.resolveGuestStatus(data, normalizedGuest);
+      const message = this.extractGuestMessage(data);
+
+      return {
+        status,
+        guest: normalizedGuest,
+        raw: data,
+        message,
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(error.message || 'Failed to search guest.');
+      }
+      throw new Error('Failed to search guest.');
+    }
+  }
 
   /**
    * Reserve a slot using the booking ID from the highest priority center
@@ -731,6 +799,58 @@ export class BookingService {
     }
 
     return undefined;
+  }
+
+  private extractGuestFromResponse<TGuest = any>(data: any): TGuest | null {
+    if (!data) {
+      return null;
+    }
+
+    const candidates = [
+      data.guest,
+      data.Guest,
+      data.data?.guest,
+      data.data?.Guest,
+      data.data,
+      data.result,
+    ];
+
+    for (const candidate of candidates) {
+      if (candidate && typeof candidate === 'object') {
+        return candidate as TGuest;
+      }
+    }
+
+    return null;
+  }
+
+  private resolveGuestStatus(data: any, guest: unknown): GuestAuthStatus {
+    if (typeof data?.exists === 'boolean') {
+      return data.exists ? 'authenticated' : 'unauthenticated';
+    }
+
+    if (typeof data?.found === 'boolean') {
+      return data.found ? 'authenticated' : 'unauthenticated';
+    }
+
+    if (typeof data?.success === 'boolean') {
+      if (data.success && guest) {
+        return 'authenticated';
+      }
+      if (!data.success && !guest) {
+        return 'unauthenticated';
+      }
+    }
+
+    if (guest) {
+      return 'authenticated';
+    }
+
+    return 'unauthenticated';
+  }
+
+  private extractGuestMessage(data: any): string | undefined {
+    return data?.message || data?.error || data?.data?.message;
   }
 }
 
