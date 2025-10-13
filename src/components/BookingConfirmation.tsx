@@ -172,17 +172,13 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                   
                   {/* Provider Dropdown */}
                   <div className="w-full md:w-auto">
-                    {availableProviders.length > 1 && onProviderChange ? (
+                    {availableProviders.length > 0 && onProviderChange && (
                       <ProviderDropdown
                         selectedProvider={selectedProvider}
                         availableProviders={availableProviders}
                         onProviderChange={onProviderChange}
                         disabled={isConfirming}
                       />
-                    ) : (
-                      <OrangeButton onClick={onEditProvider}>
-                        Change Provider
-                      </OrangeButton>
                     )}
                   </div>
                 </div>
