@@ -1,5 +1,4 @@
 import React from 'react';
-import { Button } from './ui/button';
 
 interface NavigationBarProps {
   currentStep: number;
@@ -18,27 +17,13 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({ currentStep }) => 
       {/* Mobile Navigation (md:hidden) */}
       <nav className="relative top-0 left-0 right-0 z-[90] bg-transparent md:hidden">
         <div className="w-full max-w-6xl mx-auto px-4 py-2">
-          {/* Top Row: Centered Logo, Right-aligned Sign In */}
-          <div className="grid grid-cols-3 items-center">
-            <div />
-            {/* Centered Logo */}
-            <div className="flex justify-center">
-              <img
-                src="/OLI logo.png"
-                alt="Oli Logo"
-                className="w-[64px] h-auto"
-              />
-            </div>
-            {/* Right Sign In (text button) */}
-            <div className="flex justify-end">
-              <Button
-                variant="ghost"
-                size="ghost"
-                className="text-[#C5A88C] hover:text-[#B3997E] h-auto px-0 py-0 text-xs"
-              >
-                Sign In
-              </Button>
-            </div>
+          {/* Top Row: Centered Logo */}
+          <div className="flex justify-center">
+            <img
+              src="/OLI logo.png"
+              alt="Oli Logo"
+              className="w-[64px] h-auto"
+            />
           </div>
 
           {/* Step Tracker: centered below logo on mobile */}
@@ -69,9 +54,9 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({ currentStep }) => 
 
       {/* Desktop/Tablet Navigation (hidden on mobile) */}
       <nav className="hidden md:block fixed top-0 left-0 right-0 z-[90] backdrop-blur-sm border-b border-gray-200" style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, rgba(255, 255, 255, 0.3) 65.35%)' }}>
-        <div className="flex items-center justify-between py-1 md:w-[65%] w-full md:pl-[3%] pl-4 pr-4">
-          {/* Nav Left - Logo and Step Tracker */}
-          <div className="nav-left flex items-center space-x-4 md:space-x-6 flex-1 min-w-0">
+        <div className="flex items-center justify-center py-1 md:w-[65%] w-full md:pl-[3%] pl-4 pr-4">
+          {/* Logo and Step Tracker */}
+          <div className="flex items-center space-x-4 md:space-x-6">
             {/* Logo */}
             <div className="flex-shrink-0">
               <img
@@ -112,13 +97,6 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({ currentStep }) => 
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* Nav Right - Sign In Button */}
-          <div className="nav-right flex-shrink-0">
-            <Button variant="brown" size="default">
-              Sign In
-            </Button>
           </div>
         </div>
       </nav>
