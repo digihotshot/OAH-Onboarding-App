@@ -54,7 +54,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({ currentStep }) => 
 
       {/* Desktop/Tablet Navigation (hidden on mobile) */}
       <nav className="hidden md:block fixed top-0 left-0 right-0 z-[90] backdrop-blur-sm border-b border-gray-200" style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, rgba(255, 255, 255, 0.3) 65.35%)' }}>
-        <div className="flex items-center justify-center py-1 md:w-[65%] w-full md:pl-[3%] pl-4 pr-4">
+        <div className="flex items-center justify-start py-1 md:w-[65%] w-full md:pl-[3%] pl-4 pr-4">
           {/* Logo and Step Tracker */}
           <div className="flex items-center space-x-4 md:space-x-6">
             {/* Logo */}
