@@ -6,7 +6,6 @@ import { Heading } from './ui/heading';
 import { StepText } from './ui/step-text';
 import { Provider } from '../types/middleware';
 import { ProviderDropdown } from './ui/provider-dropdown';
-import { GuestAuthStatus } from '../services/bookingService';
 
 interface BookingConfirmationProps {
   userInfo: UserInfo;
@@ -26,15 +25,7 @@ interface BookingConfirmationProps {
   onEditAddress: () => void;
   onEditTreatment: () => void;
   onEditDateTime: () => void;
-  onEditProvider: () => void;
   isConfirming?: boolean;
-  guestVerification?: {
-    status: GuestAuthStatus;
-    email?: string;
-    phone?: string;
-    guest?: unknown;
-    message?: string;
-  } | null;
 }
 
 export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
@@ -51,9 +42,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   onEditAddress,
   onEditTreatment,
   onEditDateTime,
-  onEditProvider,
   isConfirming = false,
-  guestVerification = null,
 }) => {
   // Track if we've already auto-selected a provider to prevent infinite loops
   const hasAutoSelectedRef = useRef(false);
@@ -119,7 +108,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
           <Heading>Booking Summary</Heading>
         </div>
 
-        {guestVerification && (
+        {/* {guestVerification && (
           <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
             <p className="text-sm font-medium text-gray-700">Guest Status</p>
             <p className="text-sm text-gray-600">
@@ -137,7 +126,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
               </p>
             )}
           </div>
-        )}
+        )} */}
 
         {/* Booking Summary */}
         <div className="max-w-2xl w-full mb-8">

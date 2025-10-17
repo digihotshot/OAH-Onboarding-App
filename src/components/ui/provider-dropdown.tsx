@@ -73,7 +73,7 @@ export const ProviderDropdown: React.FC<ProviderDropdownProps> = ({
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-[#C2A88F]">
+        <div className="absolute z-50 min-w-40 w-max mt-1 bg-white border border-[#C2A88F] left-1/2 transform -translate-x-1/2">
           <div >
             {availableProviders.map((provider) => (
               <button

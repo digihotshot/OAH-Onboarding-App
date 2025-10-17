@@ -66,7 +66,7 @@ const normalizeGuest = (
     null;
 
   return {
-    id: typeof id === 'string' ? id : null,
+    id: typeof id === 'string' ? id.toLowerCase() : null,
     name,
     email,
     phone,
@@ -451,10 +451,26 @@ const App: React.FC = () => {
       setGuestVerification(nextState);
 
       if (response.status === 'authenticated') {
-        const normalized = normalizeGuest(response.guest, { email, phone });
-        if (normalized.id) {
-          setGuestId(normalized.id);
+        console.log('🔍 Raw guest response from API:', response.guest);
+        
+        // Extract the actual guest object from the response
+        // API returns {guests: [...]} structure, we need guests[0]
+        let actualGuest = response.guest;
+        if (actualGuest && typeof actualGuest === 'object' && 'guests' in actualGuest && Array.isArray(actualGuest.guests)) {
+          actualGuest = actualGuest.guests[0];
+          console.log('🔍 Extracted guest from guests array:', actualGuest);
         }
+        
+        const normalized = normalizeGuest(actualGuest, { email, phone });
+        console.log('🔍 Normalized guest data:', normalized);
+        
+        if (normalized.id) {
+          console.log('✅ Setting guestId from modal:', normalized.id);
+          setGuestId(normalized.id);
+        } else {
+          console.error('❌ Guest ID not found in normalized data!');
+        }
+        
         setUserInfo({
           name: normalized.name,
           email: normalized.email,
@@ -766,9 +782,18 @@ const App: React.FC = () => {
       );
       
       // Proceed to next step
+      console.log('🔍 Checking authentication status before routing:', {
+        guestVerificationStatus: guestVerification?.status,
+        guestId: guestId,
+        hasGuestVerification: !!guestVerification,
+        willSkipUserInfo: guestVerification?.status === 'authenticated' && !!guestId
+      });
+      
       if (guestVerification?.status === 'authenticated' && guestId) {
+        console.log('✅ Authenticated guest detected - skipping to step 5 (booking confirmation)');
         setCurrentStep(5);
       } else {
+        console.log('ℹ️ Guest not authenticated - proceeding to step 4 (user info form)');
         setCurrentStep(4);
       }
       
@@ -839,13 +864,26 @@ const App: React.FC = () => {
     }
 
     console.log('🔄 Starting unified slot fetch from Step 2 Next click');
+    console.log('🔍 Current authentication state before advancing:', {
+      guestId,
+      guestVerificationStatus: guestVerification?.status,
+      willPreserveGuestId: !!(guestId && guestVerification?.status === 'authenticated')
+    });
 
     // Reset state related to previous selections
     setSelectedDate(undefined);
     setSelectedTime(undefined);
     setSelectedSlotInfo(null);
     setProviderBookingId(null);  // Also reset providerBookingId
-    setGuestId(null);
+
+    setGuestId(prev => {
+      if (prev && guestVerification?.status === 'authenticated') {
+        console.log('✅ Preserving authenticated guestId:', prev);
+        return prev;
+      }
+      console.log('ℹ️ Clearing guestId (guest not authenticated)');
+      return null;
+    });
 
     // Move to step 3 immediately (calendar view)
     setCurrentStep(3);
@@ -859,7 +897,14 @@ const App: React.FC = () => {
 
   const handleBack = () => {
     if (currentStep > 1) {
-      const previousStep = currentStep - 1;
+      let previousStep = currentStep - 1;
+      
+      // Skip user info step (4) when going back if guest is authenticated
+      if (currentStep === 5 && guestVerification?.status === 'authenticated' && guestId) {
+        previousStep = 3; // Go directly to calendar
+        console.log('✅ Authenticated guest - skipping back to calendar (step 3)');
+      }
+      
       setCurrentStep(previousStep);
       
       // If going back to step 3 (calendar) and we have services but no slots, refetch
@@ -880,6 +925,71 @@ const App: React.FC = () => {
     try {
       if (!selectedDate || !selectedTime) {
         throw new Error('Selected date or time is missing.');
+      }
+      const sanitizedPhone = userData.phone.replace(/[^\d+]/g, '').replace(/\D/g, '');
+
+      if (guestId) {
+        setUserInfo(userData);
+        setGuestVerification(prev => ({
+          email: userData.email,
+          phone: sanitizedPhone || userData.phone,
+          status: 'authenticated',
+          guest: prev?.guest,
+          message: prev?.message ?? 'Guest already selected.',
+        }));
+        setCurrentStep(5);
+        return;
+      }
+
+      let foundExistingGuest = false;
+
+      try {
+        const searchResponse = await bookingService.searchGuest({
+          email: userData.email,
+          phone: sanitizedPhone || undefined,
+        });
+
+        if (searchResponse.status === 'authenticated' && searchResponse.guest) {
+          // Extract the actual guest object from the response
+          // API returns {guests: [...]} structure, we need guests[0]
+          let actualGuest = searchResponse.guest;
+          if (actualGuest && typeof actualGuest === 'object' && 'guests' in actualGuest && Array.isArray(actualGuest.guests)) {
+            actualGuest = actualGuest.guests[0];
+          }
+          
+          const normalized = normalizeGuest(actualGuest, {
+            email: userData.email,
+            phone: sanitizedPhone || userData.phone,
+          });
+
+          if (normalized.id) {
+            const resolvedUserInfo: UserInfo = {
+              name: userData.name || normalized.name,
+              email: normalized.email || userData.email,
+              phone: userData.phone || normalized.phone,
+            };
+
+            setGuestId(normalized.id);
+            setUserInfo(resolvedUserInfo);
+            setGuestVerification({
+              email: resolvedUserInfo.email,
+              phone: normalized.phone || sanitizedPhone || undefined,
+              status: 'authenticated',
+              guest: searchResponse.guest ?? undefined,
+              message: searchResponse.message || 'Guest found.',
+            });
+
+            foundExistingGuest = true;
+          }
+        }
+      } catch (searchError) {
+        console.warn('ℹ️ Guest search failed, proceeding to create guest.', searchError);
+      }
+
+      if (foundExistingGuest) {
+        setIsReserving(false);
+        setCurrentStep(5);
+        return;
       }
 
       const initialCenterId = selectedSlotInfo?.centerId ?? selectedProvider?.provider_id ?? undefined;
@@ -1281,9 +1391,7 @@ const App: React.FC = () => {
           onEditAddress={() => setCurrentStep(1)}
           onEditTreatment={() => setCurrentStep(2)}
           onEditDateTime={() => setCurrentStep(3)}
-          onEditProvider={() => setCurrentStep(1)}
           isConfirming={isConfirming}
-          guestVerification={guestVerification}
         />
       </AppWrapper>
     );

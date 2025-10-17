@@ -54,7 +54,12 @@ export const ServerAddressInput: React.FC<ServerAddressInputProps> = ({
 
   // Handle suggestion selection
   const handleSuggestionSelect = async (suggestion: AddressSuggestion) => {
-    console.log('🎯 Suggestion selected:', suggestion);
+    console.log('🎯 Suggestion selected:', {
+      placeId: suggestion.placeId,
+      description: suggestion.description,
+      mainText: suggestion.mainText,
+      secondaryText: suggestion.secondaryText
+    });
     
     // Set selecting flag to prevent search from running
     setIsSelecting(true);
@@ -68,11 +73,25 @@ export const ServerAddressInput: React.FC<ServerAddressInputProps> = ({
     setSelectedSuggestion(suggestion);
 
     // Validate the address
+    console.log('🔄 About to validate address with:', {
+      address: suggestion.description,
+      placeId: suggestion.placeId
+    });
     const validation = await validateAddress(suggestion.description, suggestion.placeId);
     
     if (validation && onAddressSelect) {
-      console.log('✅ Address validated, calling onAddressSelect:', validation);
+      console.log('✅ Address validated, calling onAddressSelect with:', {
+        formattedAddress: validation.formattedAddress,
+        zipcode: validation.zipcode,
+        city: validation.city,
+        state: validation.state
+      });
       onAddressSelect(validation.formattedAddress, validation.zipcode);
+    } else {
+      console.error('❌ Validation failed or onAddressSelect not provided:', {
+        validationResult: validation,
+        hasOnAddressSelect: !!onAddressSelect
+      });
     }
   };
 

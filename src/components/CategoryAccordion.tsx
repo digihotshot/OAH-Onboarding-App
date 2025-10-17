@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   UniversalAddOn,
   UniversalCategory,
@@ -25,55 +25,17 @@ export const CategoryAccordion: React.FC<CategoryAccordionProps> = ({
   isLoading = false
 }) => {
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
-  const [openServiceAddOns, setOpenServiceAddOns] = useState<Set<string>>(new Set());
 
   const formatPrice = (price: number) => {
     const resolvedPrice = Number.isFinite(price) ? price : 0;
     return `$${resolvedPrice.toFixed(2)}`;
   };
 
-  useEffect(() => {
-    const selectedIds = new Set(selectedServices.map(service => service.id));
-    setOpenServiceAddOns(prev => {
-      const filtered = Array.from(prev).filter(id => selectedIds.has(id));
-      if (filtered.length === prev.size) {
-        return prev;
-      }
-      return new Set(filtered);
-    });
-  }, [selectedServices]);
 
-  const handleServiceSelection = (service: UniversalService, isCurrentlySelected: boolean) => {
+  const handleServiceSelection = (service: UniversalService) => {
     onServiceSelect(service);
-
-    if (!service.addOns || service.addOns.length === 0) {
-      return;
-    }
-
-    setOpenServiceAddOns(prev => {
-      const newSet = new Set(prev);
-
-      if (isCurrentlySelected) {
-        newSet.delete(service.id);
-      } else {
-        newSet.add(service.id);
-      }
-
-      return newSet;
-    });
   };
 
-  const toggleServiceAddOnsDropdown = (serviceId: string) => {
-    setOpenServiceAddOns(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(serviceId)) {
-        newSet.delete(serviceId);
-      } else {
-        newSet.add(serviceId);
-      }
-      return newSet;
-    });
-  };
 
   const toggleCategory = (categoryId: string) => {
     setOpenCategories(prev => {
@@ -162,7 +124,6 @@ export const CategoryAccordion: React.FC<CategoryAccordionProps> = ({
                     {services.map((service) => {
                       const isSelected = selectedServices.some(s => s.id === service.id);
                       const showAddOns = Boolean(isSelected && service.addOns && service.addOns.length > 0);
-                      const isAddOnsOpen = showAddOns && openServiceAddOns.has(service.id);
                       const selectedAddOnsForService = selectedAddOns[service.id] ?? [];
                       return (
                         <div
@@ -174,11 +135,11 @@ export const CategoryAccordion: React.FC<CategoryAccordionProps> = ({
                           <div
                             role="button"
                             tabIndex={0}
-                            onClick={() => handleServiceSelection(service, isSelected)}
+                            onClick={() => handleServiceSelection(service)}
                             onKeyDown={(event) => {
                               if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                handleServiceSelection(service, isSelected);
+                                handleServiceSelection(service);
                               }
                             }}
                             className="flex items-center justify-between px-6 py-4 cursor-pointer"
@@ -189,7 +150,7 @@ export const CategoryAccordion: React.FC<CategoryAccordionProps> = ({
                                 type="button"
                                 onClick={(event) => {
                                   event.stopPropagation();
-                                  handleServiceSelection(service, isSelected);
+                                  handleServiceSelection(service);
                                 }}
                                 className={`flex-shrink-0 w-5 h-5 border-2 rounded-full flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C5A88C] ${
                                   isSelected 
@@ -246,115 +207,89 @@ export const CategoryAccordion: React.FC<CategoryAccordionProps> = ({
 
                           {showAddOns && (
                             <div className="bg-[#F8F5F2] border-t border-gray-100 px-12 pb-3">
-                              <button
-                                type="button"
-                                onClick={() => toggleServiceAddOnsDropdown(service.id)}
-                                className="w-full flex items-center justify-between text-left text-xs font-semibold text-[#A07C5A] uppercase tracking-wide py-3"
-                              >
-                                <span>Add-on Services ({service.name})</span>
-                                <svg
-                                  className={`transition-transform duration-200 ${isAddOnsOpen ? 'rotate-180' : ''}`}
-                                  width="16"
-                                  height="16"
-                                  viewBox="0 0 16 16"
-                                  fill="none"
-                                  xmlns="http://www.w3.org/2000/svg"
-                                >
-                                  <path
-                                    d="M3 6L8 11L13 6"
-                                    stroke="#A07C5A"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
-                              </button>
-                              <div
-                                className={`transition-all duration-300 ease-in-out overflow-hidden ${
-                                  isAddOnsOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                                }`}
-                              >
-                                <div className="mt-1 space-y-2">
-                                  {service.addOns?.map(addOn => {
-                                    const isAddOnSelected = selectedAddOnsForService.some(selected => selected.id === addOn.id);
-                                    return (
-                                      <div
-                                        key={addOn.id}
-                                        role="button"
-                                        tabIndex={0}
-                                        onClick={() => onAddOnToggle(service, addOn, isAddOnSelected)}
-                                        onKeyDown={(event) => {
-                                          if (event.key === 'Enter' || event.key === ' ') {
-                                            event.preventDefault();
+                              <div className="text-xs font-semibold text-[#A07C5A] uppercase tracking-wide py-3">
+                                Add-on Services ({service.name})
+                              </div>
+                              <div className="mt-1 space-y-2">
+                                {service.addOns?.map(addOn => {
+                                  const isAddOnSelected = selectedAddOnsForService.some(selected => selected.id === addOn.id);
+                                  return (
+                                    <div
+                                      key={addOn.id}
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={() => onAddOnToggle(service, addOn, isAddOnSelected)}
+                                      onKeyDown={(event) => {
+                                        if (event.key === 'Enter' || event.key === ' ') {
+                                          event.preventDefault();
+                                          onAddOnToggle(service, addOn, isAddOnSelected);
+                                        }
+                                      }}
+                                      className="flex items-start justify-between py-2 cursor-pointer"
+                                      aria-pressed={isAddOnSelected}
+                                    >
+                                      <div className="flex items-start space-x-4 pr-4">
+                                        <button
+                                          type="button"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
                                             onAddOnToggle(service, addOn, isAddOnSelected);
-                                          }
-                                        }}
-                                        className="flex items-start justify-between py-2 cursor-pointer"
-                                        aria-pressed={isAddOnSelected}
-                                      >
-                                        <div className="flex items-start space-x-4 pr-4">
-                                          <button
-                                            type="button"
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              onAddOnToggle(service, addOn, isAddOnSelected);
-                                            }}
-                                            className={`flex-shrink-0 w-5 h-5 border-2 rounded-full flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C5A88C] ${
-                                              isAddOnSelected
-                                                ? 'bg-[#C5A88C] border-[#C5A88C]'
-                                                : 'border-[#C5A88C] bg-white'
-                                            }`}
-                                            style={{
-                                              width: '20px',
-                                              height: '20px',
-                                              borderColor: '#C5A88C',
-                                              borderRadius: '50%'
-                                            }}
-                                            aria-pressed={isAddOnSelected}
-                                          >
-                                            {isAddOnSelected && (
-                                              <svg
-                                                width="12"
-                                                height="12"
-                                                viewBox="0 0 12 12"
-                                                fill="none"
-                                                xmlns="http://www.w3.org/2000/svg"
-                                              >
-                                                <path
-                                                  d="M10 3L4.5 8.5L2 6"
-                                                  stroke="white"
-                                                  strokeWidth="2"
-                                                  strokeLinecap="round"
-                                                  strokeLinejoin="round"
-                                                />
-                                              </svg>
-                                            )}
-                                          </button>
-                                          <div>
-                                            <div className="text-sm font-semibold text-gray-900">
-                                              {addOn.name}
-                                            </div>
-                                            {addOn.description && (
-                                              <div className="text-xs text-gray-600 mt-1">
-                                                {addOn.description}
-                                              </div>
-                                            )}
-                                          </div>
-                                        </div>
-                                        <div className="text-right whitespace-nowrap">
+                                          }}
+                                          className={`flex-shrink-0 w-5 h-5 border-2 rounded-full flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C5A88C] ${
+                                            isAddOnSelected
+                                              ? 'bg-[#C5A88C] border-[#C5A88C]'
+                                              : 'border-[#C5A88C] bg-white'
+                                          }`}
+                                          style={{
+                                            width: '20px',
+                                            height: '20px',
+                                            borderColor: '#C5A88C',
+                                            borderRadius: '50%'
+                                          }}
+                                          aria-pressed={isAddOnSelected}
+                                        >
+                                          {isAddOnSelected && (
+                                            <svg
+                                              width="12"
+                                              height="12"
+                                              viewBox="0 0 12 12"
+                                              fill="none"
+                                              xmlns="http://www.w3.org/2000/svg"
+                                            >
+                                              <path
+                                                d="M10 3L4.5 8.5L2 6"
+                                                stroke="white"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              />
+                                            </svg>
+                                          )}
+                                        </button>
+                                        <div>
                                           <div className="text-sm font-semibold text-gray-900">
-                                            {formatPrice(addOn.price)}
+                                            {addOn.name}
                                           </div>
-                                          {typeof addOn.duration === 'number' && (
-                                            <div className="text-xs text-gray-500 mt-1">
-                                              {addOn.duration}min
+                                          {addOn.description && (
+                                            <div className="text-xs text-gray-600 mt-1">
+                                              {addOn.description}
                                             </div>
                                           )}
                                         </div>
                                       </div>
-                                    );
-                                  })}
-                                </div>
+                                      <div className="text-right whitespace-nowrap">
+                                        <div className="text-sm font-semibold text-gray-900">
+                                          {formatPrice(addOn.price)}
+                                        </div>
+                                        {typeof addOn.duration === 'number' && (
+                                          <div className="text-xs text-gray-500 mt-1">
+                                            {addOn.duration}min
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           )}

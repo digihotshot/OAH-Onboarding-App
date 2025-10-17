@@ -78,18 +78,24 @@ export const useServerAddress = () => {
     try {
       console.log(`🔍 Validating address: "${address}" with placeId: "${placeId}"`);
       
+      const requestBody = { address, placeId };
+      console.log('📤 Request body being sent:', JSON.stringify(requestBody, null, 2));
+      
       const response = await fetch(`${API_CONFIG.BASE_URL}/address/validate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ address, placeId }),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log('📥 Response status:', response.status, response.statusText);
       const data = await response.json();
+      console.log('📥 Response data:', JSON.stringify(data, null, 2));
 
       if (data.success) {
         console.log(`✅ Address validated successfully:`, data.data);
+        console.log(`📮 Zipcode extracted:`, data.data.zipcode);
         return data.data;
       } else {
         console.error('❌ Address validation failed:', data.message);

@@ -30,13 +30,12 @@ export const BottomLeftOverlay: React.FC<BottomLeftOverlayProps> = ({ currentSte
     switch (currentStep) {
       case 1: // Address step
         return {
-          title: "50,000+",
-          subtitle: "customers transformed their skin, right from the privacy of their home"
+          title: "Thousands Across Michigan Choose Oli."
         };
       case 2: // Service selection step - Rating display
         return {
-          title: "4.8",
-          subtitle: "Rated by 1,200+ users across the country",
+          title: "5.0",
+          subtitle: "Rated 5.0 stars by hundreds of patients across Michigan",
           showStars: true
         };
       case 3: // Calendar step
@@ -46,10 +45,9 @@ export const BottomLeftOverlay: React.FC<BottomLeftOverlayProps> = ({ currentSte
         };
       case 4: // User info step
         return {
-          title: "2.1M+ happy users",
-          subtitle: "You're in good hands",
-          subtitle2: "We've served",
-          showWavingHand: true
+          title: "3k+ patients",
+          subtitle: "across Michigan",
+         
         };
       case 5: // Booking confirmation step
         return {
@@ -84,38 +82,11 @@ export const BottomLeftOverlay: React.FC<BottomLeftOverlayProps> = ({ currentSte
           borderBottomRightRadius: '0px',
           border: '1px solid #C2A88F',
           marginLeft: '-20%',
-          marginBottom: '5%'
+          marginBottom: '5%',
+          minHeight:'5rem'
         }}
       >
         <div className="text-left text-[#71430C]">
-          {content.showWavingHand && (
-            <>
-              <div 
-                style={{
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: 500,
-                  fontStyle: 'normal',
-                  fontSize: '18px',
-                  lineHeight: '137%',
-                  letterSpacing: '-3%'
-                }}
-              >
-                {content.subtitle} 👋
-              </div>
-              <div 
-                style={{
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: 500,
-                  fontStyle: 'normal',
-                  fontSize: '18px',
-                  lineHeight: '137%',
-                  letterSpacing: '-3%'
-                }}
-              >
-                {content.subtitle2}
-              </div>
-            </>
-          )}
           {content.subtitleFirst && (
             <div 
               className="mb-2"
@@ -157,7 +128,7 @@ export const BottomLeftOverlay: React.FC<BottomLeftOverlayProps> = ({ currentSte
               </div>
             )}
           </div>
-          {!content.subtitleFirst && !content.showWavingHand && (
+          {!content.subtitleFirst && (
             <div 
               style={{
                 fontFamily: 'Inter, sans-serif',

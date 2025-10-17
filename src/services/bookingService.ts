@@ -172,20 +172,22 @@ export class BookingService {
       throw new Error('Either email or phone must be provided to search guest.');
     }
 
-    const payload = {
-      ...(email ? { email } : {}),
-      ...(phone ? { phone } : {}),
-    };
+    const query = new URLSearchParams();
 
-    const url = `${this.API_BASE_URL}/search-guest`;
+    if (email) {
+      query.set('email', email);
+    }
+
+    if (phone) {
+      query.set('phone', phone);
+    }
+
+    const queryString = query.toString();
+    const url = `${this.API_BASE_URL}/search-guest${queryString ? `?${queryString}` : ''}`;
 
     try {
       const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
+        method: 'GET',
       });
 
       if (!response.ok) {
@@ -737,7 +739,7 @@ export class BookingService {
 
       if (normalizedGuest?.id) {
         console.log(`✅ Guest upserted with id ${normalizedGuest.id}`);
-        this.cachedGuestId = normalizedGuest.id;
+        this.cachedGuestId = normalizedGuest.id.toLowerCase();
         return normalizedGuest;
       }
 
@@ -768,7 +770,7 @@ export class BookingService {
           candidate.GuestID;
         if (resolvedId) {
           return {
-            id: resolvedId,
+            id: resolvedId.toLowerCase(),
             firstName: candidate.firstName || candidate.first_name || candidate.personal_info?.first_name || request.guest.firstName,
             lastName: candidate.lastName || candidate.last_name || candidate.personal_info?.last_name || request.guest.lastName,
             email: candidate.email || candidate.personal_info?.email || request.guest.email,
@@ -790,7 +792,7 @@ export class BookingService {
 
     if (fallbackId) {
       return {
-        id: fallbackId,
+        id: fallbackId.toLowerCase(),
         firstName: request.guest.firstName,
         lastName: request.guest.lastName,
         email: request.guest.email,
@@ -811,8 +813,10 @@ export class BookingService {
       data.Guest,
       data.data?.guest,
       data.data?.Guest,
-      data.data,
-      data.result,
+      Array.isArray(data.data) ? data.data[0] : data.data,
+      Array.isArray(data.result) ? data.result[0] : data.result,
+      Array.isArray(data.results) ? data.results[0] : data.results,
+      Array.isArray(data.guests) ? data.guests[0] : data.guests,
     ];
 
     for (const candidate of candidates) {
@@ -831,6 +835,18 @@ export class BookingService {
 
     if (typeof data?.found === 'boolean') {
       return data.found ? 'authenticated' : 'unauthenticated';
+    }
+
+    if (Array.isArray(data?.data)) {
+      return data.data.length > 0 ? 'authenticated' : 'unauthenticated';
+    }
+
+    if (Array.isArray(data?.result)) {
+      return data.result.length > 0 ? 'authenticated' : 'unauthenticated';
+    }
+
+    if (Array.isArray(data?.results)) {
+      return data.results.length > 0 ? 'authenticated' : 'unauthenticated';
     }
 
     if (typeof data?.success === 'boolean') {
