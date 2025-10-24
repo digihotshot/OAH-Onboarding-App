@@ -136,7 +136,25 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                   {/* Provider Image */}
                   <div className="w-16 h-16 bg-[#F5F1ED] rounded-full flex items-center justify-center flex-shrink-0">
                     {selectedProvider ? (
-                      <div className="w-12 h-12 bg-[#C2A88F] rounded-full flex items-center justify-center">
+                      selectedProvider.imageUrl ? (
+                        <img
+                          src={selectedProvider.imageUrl}
+                          alt={selectedProvider.name}
+                          className="w-16 h-16 rounded-full object-cover"
+                          onError={(e) => {
+                            // Fallback to initial avatar if image fails to load
+                            e.currentTarget.style.display = 'none';
+                            const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                            if (fallback) fallback.style.display = 'flex';
+                          }}
+                        />
+                      ) : null
+                    ) : null}
+                    {selectedProvider ? (
+                      <div 
+                        className="w-12 h-12 bg-[#C2A88F] rounded-full flex items-center justify-center"
+                        style={{ display: selectedProvider.imageUrl ? 'none' : 'flex' }}
+                      >
                         <span className="text-white font-semibold text-lg">
                           {selectedProvider.name.charAt(0)}
                         </span>

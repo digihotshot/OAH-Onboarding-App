@@ -15,10 +15,12 @@ interface FinalConfirmationProps {
   bookingId?: string;
   onStartNewBooking: () => void;
   providerName?: string;
+  providerImageUrl?: string;
 }
 
 export const FinalConfirmation: React.FC<FinalConfirmationProps> = ({
-  providerName = "Loreal US"
+  providerName = "Loreal US",
+  providerImageUrl
 }) => {
   return (
     <div>
@@ -38,9 +40,26 @@ export const FinalConfirmation: React.FC<FinalConfirmationProps> = ({
           Appointment Confirmed!!
         </Heading>
 
+        {/* Provider Image and Name */}
+        <div className="flex items-center justify-center gap-3 mb-4">
+          {providerImageUrl && (
+            <img
+              src={providerImageUrl}
+              alt={providerName}
+              className="w-12 h-12 rounded-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          )}
+          <p className="text-black font-semibold">
+            {providerName}
+          </p>
+        </div>
+
         {/* Confirmation Message */}
-        <p className="text-black">
-          Your appointment with {providerName} is confirmed.
+        <p className="text-black mb-4">
+          Your appointment is confirmed.
         </p>
 
         {/* Links */}

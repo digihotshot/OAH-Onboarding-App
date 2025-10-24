@@ -19,11 +19,13 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({ currentStep }) => 
         <div className="w-full max-w-6xl mx-auto px-4 py-2">
           {/* Top Row: Centered Logo */}
           <div className="flex justify-center">
-            <img
-              src="/OLI logo.png"
-              alt="Oli Logo"
-              className="w-[64px] h-auto"
-            />
+            <a href="https://www.oliathome.com/" target="_blank" rel="noopener noreferrer">
+              <img
+                src="/OLI logo.png"
+                alt="Oli Logo"
+                className="w-[64px] h-auto"
+              />
+            </a>
           </div>
 
           {/* Step Tracker: centered below logo on mobile */}
@@ -59,11 +61,13 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({ currentStep }) => 
           <div className="flex items-center space-x-4 md:space-x-6">
             {/* Logo */}
             <div className="flex-shrink-0">
-              <img
-                src="/OLI logo.png"
-                alt="Oli Logo"
-                className="w-[64px] h-[auto]"
-              />
+              <a href="https://www.oliathome.com/" target="_blank" rel="noopener noreferrer">
+                <img
+                  src="/OLI logo.png"
+                  alt="Oli Logo"
+                  className="w-[64px] h-[auto]"
+                />
+              </a>
             </div>
 
             {/* Vertical Line */}

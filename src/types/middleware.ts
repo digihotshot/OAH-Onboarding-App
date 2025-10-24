@@ -13,6 +13,7 @@ export interface Provider {
   email?: string;
   website?: string;
   description?: string;
+  imageUrl?: string;
 }
 
 export interface MiddlewareResponse<T> {

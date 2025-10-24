@@ -81,11 +81,25 @@ export const ProviderDropdown: React.FC<ProviderDropdownProps> = ({
                 onClick={() => handleProviderSelect(provider.provider_id)}
                 className={`
                   w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-[#F5F1ED] hover:text-black 
-                  transition-colors duration-150 flex items-center justify-between
+                  transition-colors duration-150 flex items-center gap-3
                   ${selectedProvider?.provider_id === provider.provider_id ? 'text-white bg-[#71430C] font-medium' : ''}
                 `}
               >
-                <span>{provider.name}</span>
+                {provider.imageUrl ? (
+                  <img
+                    src={provider.imageUrl}
+                    alt={provider.name}
+                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-semibold ${selectedProvider?.provider_id === provider.provider_id ? 'bg-white text-[#71430C]' : 'bg-[#F2E7DC] text-[#C2A88F]'}`}>
+                    {provider.name.charAt(0)}
+                  </div>
+                )}
+                <span className="flex-1">{provider.name}</span>
               </button>
             ))}
           </div>

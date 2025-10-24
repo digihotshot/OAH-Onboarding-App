@@ -530,7 +530,12 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('❌ Guest check failed:', error);
-      setGuestCheckError(error instanceof Error ? error.message : 'Failed to verify guest. Please try again.');
+      
+      // Parse the error and get user-friendly message
+      const apiError = parseApiError(error);
+      const message = getUserFriendlyErrorMessage(apiError);
+      
+      setGuestCheckError(message);
     } finally {
       setIsGuestCheckSubmitting(false);
     }
@@ -953,6 +958,14 @@ const App: React.FC = () => {
         }
       } catch (searchError) {
         console.warn('ℹ️ Guest search failed, proceeding to create guest.', searchError);
+        
+        // Parse the error to check if it's a network issue
+        const apiError = parseApiError(searchError);
+        // If it's a DNS/network error, throw it to show to the user
+        if (apiError.message && (apiError.message.includes('ENOTFOUND') || apiError.message.includes('getaddrinfo'))) {
+          throw searchError;
+        }
+        // Otherwise, continue to create guest (guest might not exist yet)
       }
 
       if (foundExistingGuest) {
@@ -1368,6 +1381,8 @@ const App: React.FC = () => {
         zipCode={zipCode}
         confirmationNumber={confirmationDetails?.confirmationNumber}
         bookingId={confirmationDetails?.bookingId}
+        providerName={selectedProvider?.name}
+        providerImageUrl={selectedProvider?.imageUrl}
         onStartNewBooking={() => {
           // Clear persisted state
           clearState();

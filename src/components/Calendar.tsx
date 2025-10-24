@@ -371,9 +371,27 @@ export const Calendar: React.FC<CalendarProps> = ({
                       letterSpacing: '0%'
                     }}
                   >
+                    {provider.imageUrl ? (
+                      <img
+                        src={provider.imageUrl}
+                        alt={provider.name}
+                        className={`w-12 h-12 rounded-full object-cover ${isSelected ? 'ring-2 ring-white' : ''}`}
+                        onError={(e) => {
+                          // Fallback to initial avatar if image fails to load
+                          e.currentTarget.style.display = 'none';
+                          const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                          if (fallback) fallback.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
                     <div
                       className={`w-12 h-12 rounded-full flex items-center justify-center ${isSelected ? 'bg-white text-[#C2A88F]' : 'bg-[#F2E7DC] text-[#C2A88F]'}`}
-                      style={{ fontFamily: 'Work Sans', fontSize: '20px', fontWeight: 600 }}
+                      style={{ 
+                        fontFamily: 'Work Sans', 
+                        fontSize: '20px', 
+                        fontWeight: 600,
+                        display: provider.imageUrl ? 'none' : 'flex'
+                      }}
                     >
                       {provider.name?.charAt(0) || 'P'}
                     </div>
