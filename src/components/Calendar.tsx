@@ -1,16 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { AvailableSlots } from '../hooks/useOptimizedSlots';
 import type { CalendarSlot } from '../types/slots';
+import type { Provider } from '../types/middleware';
 
 interface CalendarProps {
   onDateSelect: (date: Date) => void;
   onTimeSelect: (time: string, slotInfo?: any) => void;
+  onProviderSelect: (provider: Provider) => void;
+  onBackToCalendar: () => void;
   selectedDate?: Date;
   selectedTime?: string;
+  selectedProviderId?: string | null;
   isLoading?: boolean;
   availableSlots?: AvailableSlots[];
   availableDatesCount?: number;
   futureDaysCount?: number;
+  providers?: Provider[];
+  providersLoading?: boolean;
+  showProviderList?: boolean;
+  zipCode?: string | null;
+  onToggleProviderList?: (show: boolean) => void;
+  providerEmptyMessage?: string;
 }
 
 interface ResolvedTimeSlot {
@@ -25,12 +35,21 @@ interface ResolvedTimeSlot {
 export const Calendar: React.FC<CalendarProps> = ({
   onDateSelect,
   onTimeSelect,
+  onProviderSelect,
+  onBackToCalendar,
   selectedDate,
   selectedTime,
+  selectedProviderId,
   isLoading = false,
   availableSlots = [],
   availableDatesCount = 0,
-  futureDaysCount = 0
+  futureDaysCount = 0,
+  providers = [],
+  providersLoading = false,
+  showProviderList = false,
+  zipCode,
+  onToggleProviderList,
+  providerEmptyMessage,
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -307,6 +326,95 @@ export const Calendar: React.FC<CalendarProps> = ({
 
   const timeSlotsForSelectedDate = selectedDate ? getTimeSlotsForDate(selectedDate) : [];
 
+  const sortedProviders = useMemo(() => {
+    return [...providers].sort((a, b) => a.name.localeCompare(b.name));
+  }, [providers]);
+
+  const handleProviderClick = (provider: Provider) => {
+    onProviderSelect(provider);
+    onToggleProviderList?.(false);
+  };
+
+  const renderProviderList = () => {
+    return (
+        <div className="space-y-4">
+        <div className="bg-white border border-[#C2A88F80] overflow-hidden">
+          {providersLoading ? (
+            <div className="flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#C2A88F] mx-auto"></div>
+                <p className="text-sm text-gray-600 mt-3">Loading providers...</p>
+              </div>
+            </div>
+          ) : sortedProviders.length === 0 ? (
+            <div className="p-6 text-center text-gray-500">
+              <p>{providerEmptyMessage || (zipCode ? `No providers were found for ${zipCode}. Please go back and adjust your address.` : 'Enter your address to view available providers.')}</p>
+            </div>
+          ) : (
+            <div>
+              {sortedProviders.map((provider, index) => {
+                const isSelected = selectedProviderId === provider.provider_id;
+                return (
+                  <button
+                    key={provider.provider_id}
+                    type="button"
+                    onClick={() => handleProviderClick(provider)}
+                    className={`w-full 
+                      flex items-center gap-4 px-6 py-4 text-left transition-colors duration-200
+                      ${isSelected ? 'bg-[#C2A88F] text-white' : 'bg-white hover:bg-[#F5F1ED] text-gray-800'}
+                      ${index !== sortedProviders.length - 1 ? 'border-b border-[#E6D8CB]' : ''}`}
+                    style={{
+                      fontFamily: 'Work Sans',
+                      fontWeight: 500,
+                      fontSize: '16px',
+                      lineHeight: '137%',
+                      letterSpacing: '0%'
+                    }}
+                  >
+                    <div
+                      className={`w-12 h-12 rounded-full flex items-center justify-center ${isSelected ? 'bg-white text-[#C2A88F]' : 'bg-[#F2E7DC] text-[#C2A88F]'}`}
+                      style={{ fontFamily: 'Work Sans', fontSize: '20px', fontWeight: 600 }}
+                    >
+                      {provider.name?.charAt(0) || 'P'}
+                    </div>
+                    <div>
+                      <p className="text-lg" style={{ fontFamily: 'Work Sans', fontWeight: 600, lineHeight: '120%' }}>
+                        {provider.name}
+                      </p>
+                      <p className={`${isSelected ? 'text-[#F9F5F1]' : 'text-gray-500'}`} style={{ fontFamily: 'Work Sans', fontWeight: 400, fontSize: '14px', lineHeight: '150%' }}>
+                        {provider.description || 'Specializes in in-home treatments'}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-4 sm:justify-between">
+          <button
+            type="button"
+            className="text-[#C5A88C] hover:text-[#8B4513] transition-colors"
+            style={{
+              fontFamily: 'Work Sans',
+              fontWeight: 500,
+              fontSize: '16px',
+              lineHeight: '137%',
+              letterSpacing: '0%'
+            }}
+            onClick={() => {
+              onToggleProviderList?.(false);
+              onBackToCalendar();
+            }}
+          >
+            Back to calendar
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const goToPreviousMonth = () => {
     setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
   };
@@ -326,14 +434,17 @@ export const Calendar: React.FC<CalendarProps> = ({
 
   return (
     <div className="overflow-hidden">
-      <div className="flex flex-col gap-4 lg:flex-row h-[auto] ">
+      <div className="flex flex-col gap-4 lg:flex-row min-h-[450px] ">
         {/* Calendar Section */}
         <div className="bg-white lg:w-2/3 p-6 flex flex-col border border-[#C2A88F80] relative">
-          
-          
-
+          {showProviderList ? (
+            <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-[#D8C5B8] scrollbar-track-transparent">
+              {renderProviderList()}
+            </div>
+          ) : (
+            <>
           {/* Calendar Navigation */}
-          <div className={` w-full flex items-center justify-between mb-6 ${isLoading ? 'blur-sm' : ''}`}>
+          <div className={`w-full flex items-center justify-between mb-6 ${isLoading ? 'blur-sm' : ''}`}>
             <div>
               <h3 className="text-xl font-semibold text-gray-900" style={{
                 fontFamily: 'Work Sans',
@@ -476,79 +587,119 @@ export const Calendar: React.FC<CalendarProps> = ({
               </div>
             </div>
           )}
-
-          
+          </>
+        )}
         </div>
 
-        {/* Time Slots Container */}
-        <div className="bg-white lg:w-1/3 p-6 flex flex-col border border-[#C2A88F80] h-[449px]">
-          {!selectedDate ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <p className="text-gray-500" style={{
-                  fontFamily: 'Work Sans',
-                  fontWeight: 400,
-                  fontSize: '16px',
-                  lineHeight: '137%',
-                  letterSpacing: '0%'
-                }}>
-                  Select a date to show time slots
-                </p>
+        {/* Time Slots Section */}
+        {!showProviderList && (
+          <div className="lg:w-1/3 flex flex-col">
+          {/* Time Slots Container */}
+          <div className="bg-white p-6 flex flex-col border border-[#C2A88F80] flex-1 max-h-[450px]">
+            {!selectedDate ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <p className="text-gray-500" style={{
+                    fontFamily: 'Work Sans',
+                    fontWeight: 400,
+                    fontSize: '16px',
+                    lineHeight: '137%',
+                    letterSpacing: '0%'
+                  }}>
+                    Select a date to show time slots
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : (
-            <>
-              {/* Date Header */}
-              <div className="mb-4">
-                <h3 className="text-xl font-semibold text-gray-900" >
-                  {selectedDate.toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    month: 'short',
-                    day: 'numeric'
-                  })}
-                </h3>
-              </div>
-              
-              {/* Time Slots List */}
-              <div className="flex-1 overflow-y-auto scrollbar-hide">
-                {timeSlotsForSelectedDate.length > 0 ? (
-                  <div className="space-y-3">
-                    {timeSlotsForSelectedDate.map((resolvedSlot, index) => {
-                      const { slot, displayTime } = resolvedSlot;
-
-                      return (
-                        <button
-                          key={index}
-                          onClick={() => onTimeSelect(resolvedSlot.rawTime, slot)}
-                          className={`w-full p-3 text-center border transition-all duration-200 ${
-                            selectedTime === resolvedSlot.rawTime
-                              ? 'border-[#C2A88F80] bg-[#C2A88F] text-white'
-                              : 'border-[#C2A88F80] bg-white text-gray-700 hover:bg-[#F5F1ED]'
-                          }`}
-                          style={{
-                            fontFamily: 'Work Sans',
-                            fontWeight: 500,
-                            fontSize: '16px',
-                            lineHeight: '137%',
-                            letterSpacing: '0%'
-                          }}
-                        >
-                          {displayTime}
-                        </button>
-                      );
+            ) : (
+              <>
+                {/* Date Header */}
+                <div className="mb-4 text-center">
+                  <h3 className="text-xl font-semibold text-gray-900" >
+                    {selectedDate.toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric'
                     })}
-                  </div>
-                ) : (
-                  <div className="text-center text-gray-500 py-8">
-                    <p>No available time slots for this date</p>
-                  </div>
-                )}
-              </div>
-            </>
+                  </h3>
+                </div>
+                
+                {/* Time Slots List */}
+                <div className="flex-1 overflow-y-auto scrollbar-hide">
+                  {timeSlotsForSelectedDate.length > 0 ? (
+                    <div className="space-y-3">
+                      {timeSlotsForSelectedDate.map((resolvedSlot, index) => {
+                        const { slot, displayTime } = resolvedSlot;
+
+                        return (
+                          <button
+                            key={index}
+                            onClick={() => onTimeSelect(resolvedSlot.rawTime, slot)}
+                            className={`w-full p-3 text-center border transition-all duration-200 ${
+                              selectedTime === resolvedSlot.rawTime
+                                ? 'border-[#C2A88F80] bg-[#C2A88F] text-white'
+                                : 'border-[#C2A88F80] bg-white text-gray-700 hover:bg-[#F5F1ED]'
+                            }`}
+                            style={{
+                              fontFamily: 'Work Sans',
+                              fontWeight: 500,
+                              fontSize: '16px',
+                              lineHeight: '137%',
+                              letterSpacing: '0%'
+                            }}
+                          >
+                            {displayTime}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-500 py-8">
+                      <p>No available time slots for this date</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+        </div>
+        )}
+      </div>
+
+      {/* Footer Columns */}
+      <div className="mt-6 flex flex-col gap-4 lg:flex-row">
+        <div className="w-full lg:w-2/3" />
+        <div className="w-full lg:w-1/3 flex justify-center lg:justify-center">
+          {!showProviderList && (
+            <button
+              type="button"
+              className="flex items-center justify-center gap-2 text-[#C5A88C] hover:text-[#8B4513] transition-colors"
+              style={{
+                fontFamily: 'Work Sans',
+                fontWeight: 500,
+                fontSize: '16px',
+                lineHeight: '137%',
+                letterSpacing: '0%'
+              }}
+              onClick={() => onToggleProviderList?.(true)}
+            >
+              <svg 
+                width="20" 
+                height="20" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              Book By Provider
+            </button>
           )}
         </div>
-
-        
       </div>
     </div>
   );

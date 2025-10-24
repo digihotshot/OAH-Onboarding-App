@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { ServerAddressInput } from './components/ServerAddressInput';
 import { validateZipCode, ValidationResult } from './utils/zipCodeValidation';
 import { useMiddlewareProviders } from './hooks/useMiddlewareProviders';
@@ -19,6 +19,7 @@ import { BottomLeftOverlay } from './components/ImageOverlay';
 import { bookingService, GuestAuthStatus } from './services/bookingService';
 import { usePersistedBookingState } from './hooks/usePersistedBookingState';
 import { GuestCheckModal } from './components/GuestCheckModal';
+import { getUserFriendlyErrorMessage, parseApiError } from './utils/errorMessages';
 
 const normalizeGuest = (
   guest: any,
@@ -82,7 +83,7 @@ const AppWrapper: React.FC<{ children: React.ReactNode; currentStep: number }> =
         <div className="w-full h-full relative">
           <div className="h-full overflow-hidden " style={{ borderTopLeftRadius: '250px' }}>
             <img
-              src="/Main Image.jpg"
+              src="/Main Image.webp"
               alt="Oli At Home Service"
               className="w-full h-full object-cover"
             />
@@ -178,6 +179,7 @@ const App: React.FC = () => {
   
   // Selected provider state
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
+  const [providerViewOpen, setProviderViewOpen] = useState(false);
   
   // Selected slot information for reservation
   const [selectedSlotInfo, setSelectedSlotInfo] = useState<{
@@ -189,9 +191,6 @@ const App: React.FC = () => {
   
   // Booking ID from provider selection (preferred over slot info)
   const [providerBookingId, setProviderBookingId] = useState<string | null>(null);
-  
-  // Provider selection loading state
-  const [isSelectingProvider, setIsSelectingProvider] = useState(false);
   
   // Confirmation details
   const [confirmationDetails, setConfirmationDetails] = useState<{
@@ -208,13 +207,26 @@ const App: React.FC = () => {
   const hasRestoredStateRef = useRef(false);
   const guestCheckTimerRef = useRef<number | null>(null);
 
-  const transformedSelectedServices = useMemo(() => 
-    selectedServices.map(service => ({
+  const transformedSelectedServices = useMemo(() => {
+    return selectedServices.map(service => ({
       id: service.id,
       centerIds: service.centerIds || [],
-    })),
-    [selectedServices]
-  );
+    }));
+  }, [selectedServices]);
+
+  const filteredSelectedServices = useMemo(() => {
+    if (!selectedProvider) {
+      return transformedSelectedServices;
+    }
+
+    const providerId = selectedProvider.provider_id;
+    return transformedSelectedServices.map(service => ({
+      ...service,
+      centerIds: service.centerIds.includes(providerId)
+        ? [providerId]
+        : service.centerIds,
+    }));
+  }, [transformedSelectedServices, selectedProvider]);
 
   const {
     availableSlots,
@@ -223,14 +235,49 @@ const App: React.FC = () => {
     loading: isUnifiedCallLoading,
     refetch: fetchUnifiedSlots,
   } = useOptimizedSlots({
-    selectedServices: transformedSelectedServices,
+    selectedServices: filteredSelectedServices,
     weeks: 4,
     disabled: selectedServices.length === 0,
     autoFetch: false,
   });
 
   // Get providers from middleware API (moved to top to fix hooks order)
-  const { providers: availableProviders } = useMiddlewareProviders(zipCode);
+  const { providers: availableProviders, isLoading: providersLoading } = useMiddlewareProviders(zipCode);
+
+  const providerFilteredSlots = useMemo(() => {
+    if (!selectedProvider) {
+      return availableSlots;
+    }
+
+    const providerId = selectedProvider.provider_id;
+
+    return availableSlots.map(slot => {
+      const centers = (slot.centers || []).filter(center => center.id === providerId);
+      const providerSlots = centers.flatMap(center => center.slots || []);
+
+      return {
+        ...slot,
+        hasSlots: centers.length > 0 && providerSlots.length > 0,
+        slotsCount: providerSlots.length,
+        totalAvailableSlots: providerSlots.length,
+        slots: providerSlots,
+        centers,
+      };
+    });
+  }, [availableSlots, selectedProvider]);
+
+  const providerFilteredBookingForDates = useMemo(() => {
+    if (!selectedProvider) {
+      return bookingMap;
+    }
+
+    const providerId = selectedProvider.provider_id;
+    const providerSlotDates = new Set(
+      providerFilteredSlots.filter(slot => slot.hasSlots).map(slot => slot.date)
+    );
+
+    return bookingMap.filter(entry => entry.centerId === providerId && providerSlotDates.has(entry.date));
+  }, [bookingMap, selectedProvider, providerFilteredSlots]);
   
   // Get available providers for the selected slot (moved to top to fix hooks order)
   const availableProvidersForSlot = useMemo((): Array<Provider & { bookingId: string; priority: number }> => {
@@ -535,6 +582,21 @@ const App: React.FC = () => {
     }
   }, [currentStep, selectedServices.length, availableSlots.length, isUnifiedCallLoading, fetchUnifiedSlots]);
 
+  // Refetch slots when provider is selected
+  useEffect(() => {
+    if (!hasRestoredStateRef.current) {
+      return;
+    }
+
+    // Only refetch if we're on the calendar step and a provider is selected
+    if (currentStep === 3 && selectedProvider && selectedServices.length > 0) {
+      console.log('🔄 Provider selected - refetching slots filtered by provider:', selectedProvider.name);
+      fetchUnifiedSlots().catch(error => {
+        console.error('❌ Failed to refetch slots for selected provider:', error);
+      });
+    }
+  }, [selectedProvider, currentStep, selectedServices.length, fetchUnifiedSlots]);
+
   // Convert unified call response to Calendar-compatible format
   
 
@@ -686,124 +748,31 @@ const App: React.FC = () => {
     }
   };
 
-  const handleProviderSelection = async () => {
-    if (!selectedDate || !selectedTime || !selectedSlotInfo) {
-      alert('Please select a date and time before proceeding.');
+  const handleProviderSelection = useCallback(() => {
+    if (!zipCode) {
+      alert('Please enter your address first.');
       return;
     }
 
-    setIsSelectingProvider(true);
-    
-    try {
-      console.log('🔄 Selecting provider for slot:', selectedSlotInfo);
-      
-      const dateString = selectedDate.toISOString().split('T')[0];
-      
-      const bookingsForDate = bookingMap.filter(booking => booking.date === dateString);
-      
-      if (bookingsForDate.length === 0) {
-        console.error('❌ No booking data found for selected date:', {
-          selectedDate: dateString,
-          availableBookingDates: Array.from(new Set(bookingMap.map(b => b.date)))
-        });
-        throw new Error('No booking data available for the selected date. Please go back to step 2 and try again.');
-      }
-      
-      console.log('✅ Using booking map from optimized slots - no extra API call needed!');
-      console.log('📊 Booking map snapshot:', {
-        selectedDate: dateString,
-        totalBookings: bookingMap.length,
-        bookingsForSelectedDate: bookingsForDate
-      });
-      
-      // Find the booking ID for the selected slot
-      let foundBookingId = null;
-      let selectedCenterId = null;
-      
-      // Look for the booking ID in the slot info first
-      if (selectedSlotInfo.bookingId && selectedSlotInfo.bookingId !== 'placeholder-booking-id') {
-        foundBookingId = selectedSlotInfo.bookingId;
-        selectedCenterId = selectedSlotInfo.centerId;
-        console.log('🎯 Using booking ID from slot info:', foundBookingId, 'center:', selectedCenterId);
-      } else {
-        // Fallback: find the highest priority booking from cached booking_mapping
-        const sortedBookings = bookingsForDate.sort((a, b) => {
-          if (a.priority !== undefined && b.priority !== undefined) {
-            return a.priority - b.priority;
-          }
-          return a.centerId.localeCompare(b.centerId);
-        });
-        
-        if (sortedBookings.length > 0) {
-          const selectedBooking = sortedBookings[0]; // Take the first one (highest priority)
-          foundBookingId = selectedBooking.bookingId;
-          selectedCenterId = selectedBooking.centerId;
-          console.log('🎯 Using highest priority booking from booking map:', foundBookingId, 'center:', selectedCenterId);
-        }
-      }
-      
-      if (!foundBookingId) {
-        throw new Error('No booking ID found for the selected slot');
-      }
-      
-      // Store the booking ID
-      setProviderBookingId(foundBookingId);
-      console.log('🎯 Captured booking ID for provider selection:', foundBookingId);
+    console.log('📋 Opening provider selection list');
+    setProviderViewOpen(true);
 
-      // Persist center details alongside the slot info for reservation
-      setSelectedSlotInfo(prev => {
-        const fallbackPriority = bookingsForDate.find(booking => booking.bookingId === foundBookingId)?.priority ?? prev?.priority ?? 999;
-        const resolvedCenterId = selectedCenterId ?? prev?.centerId ?? 'placeholder-center-id';
-        const resolvedServiceId = prev?.serviceId ?? 'placeholder-service-id';
-        return {
-          bookingId: foundBookingId,
-          centerId: resolvedCenterId,
-          serviceId: resolvedServiceId,
-          priority: fallbackPriority,
-        };
-      });
+    setSelectedSlotInfo(null);
+    setProviderBookingId(null);
+    setSelectedProvider(null);
+  }, [zipCode]);
 
-      // Update the selected provider, prefer actual provider data when available
-      const matchedProvider = selectedCenterId
-        ? availableProviders.find(provider => provider.provider_id === selectedCenterId)
-        : undefined;
+  const handleCalendarProviderSelect = useCallback((provider: Provider) => {
+    console.log('🎯 Provider selected from calendar view:', provider);
+    setSelectedProvider(provider);
+    setProviderViewOpen(false);
+    setSelectedDate(undefined);
+    setSelectedTime(undefined);
+    setSelectedSlotInfo(null);
+    setProviderBookingId(null);
+    // Note: Slot refetch will be triggered by the useEffect watching selectedProvider
+  }, []);
 
-      setSelectedProvider(
-        matchedProvider ?? {
-          provider_id: selectedCenterId || 'unknown',
-          name: `Center ${selectedCenterId || 'Unknown'}`,
-          description: 'Selected based on priority',
-          address: '',
-          city: '',
-          state: '',
-          zipcode: '',
-          phone: '',
-        }
-      );
-      
-      // Proceed to next step
-      console.log('🔍 Checking authentication status before routing:', {
-        guestVerificationStatus: guestVerification?.status,
-        guestId: guestId,
-        hasGuestVerification: !!guestVerification,
-        willSkipUserInfo: guestVerification?.status === 'authenticated' && !!guestId
-      });
-      
-      if (guestVerification?.status === 'authenticated' && guestId) {
-        console.log('✅ Authenticated guest detected - skipping to step 5 (booking confirmation)');
-        setCurrentStep(5);
-      } else {
-        console.log('ℹ️ Guest not authenticated - proceeding to step 4 (user info form)');
-        setCurrentStep(4);
-      }
-      
-    } catch (error) {
-      console.error('❌ Provider selection failed:', error);
-      alert(`Provider selection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsSelectingProvider(false);
-    }
-  };
 
 
 
@@ -1017,33 +986,11 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('❌ Guest creation failed:', error);
       
-      // Check for duplicate mobile number error
-      let message = 'Unable to create guest profile. Please try again.';
-      
-      if (error instanceof Error) {
-        try {
-          // Try to parse the error as JSON to check for specific error codes
-          const errorData = JSON.parse(error.message);
-          if (errorData.details && errorData.details.code === 417 && 
-              errorData.details.message === 'duplicate mobile_number') {
-            message = 'Contact no. already exist.';
-          } else {
-            message = error.message;
-          }
-        } catch (parseError) {
-          // If not JSON, check for string patterns
-          if (error.message.includes('duplicate mobile_number') || 
-              error.message.includes('code": 417') ||
-              error.message.includes('Request failed with status code 400')) {
-            message = 'Contact no. already exist.';
-          } else {
-            message = error.message;
-          }
-        }
-      }
+      // Parse the error and get user-friendly message
+      const apiError = parseApiError(error);
+      const message = getUserFriendlyErrorMessage(apiError);
       
       setReservationError(message);
-      alert(`Failed: ${message}`);
     } finally {
       setIsReserving(false);
     }
@@ -1283,8 +1230,9 @@ const App: React.FC = () => {
           {/* Header */}
           <div className="mb-8 text-center md:text-left">
             <StepText>STEP 3 OF 4</StepText>
-            <Heading>Select date & time</Heading>
-            
+            <Heading>
+              {providerViewOpen ? 'Available Providers' : 'Select date & time'}
+            </Heading>
           </div>
 
           {/* Calendar Component */}
@@ -1292,14 +1240,29 @@ const App: React.FC = () => {
             <Calendar
               onDateSelect={handleDateSelect}
               onTimeSelect={handleTimeSelect}
+              onProviderSelect={handleCalendarProviderSelect}
+              onBackToCalendar={() => {
+                setProviderViewOpen(false);
+                setSelectedProvider(null);
+                setSelectedSlotInfo(null);
+                setSelectedTime(undefined);
+              }}
               selectedDate={selectedDate}
               selectedTime={selectedTime}
+              selectedProviderId={selectedProvider?.provider_id ?? null}
               isLoading={isUnifiedCallLoading}
-              availableSlots={availableSlots}
+              availableSlots={providerViewOpen ? providerFilteredSlots : availableSlots}
               availableDatesCount={slotsMetadata?.availableDates?.filter(date => {
-                return bookingMap.some(booking => booking.date === date);
+                const targetBookingMap = providerViewOpen ? providerFilteredBookingForDates : bookingMap;
+                return targetBookingMap.some(booking => booking.date === date);
               }).length || 0}
               futureDaysCount={slotsMetadata?.futureDaysCount || 0}
+              providers={availableProviders}
+              providersLoading={providersLoading}
+              showProviderList={providerViewOpen}
+              zipCode={zipCode}
+              onToggleProviderList={setProviderViewOpen}
+              providerEmptyMessage={zipCode ? `No providers found for ${zipCode}. Please try a different address.` : 'Enter your address to view providers.'}
             />
           </div>
 
@@ -1313,22 +1276,18 @@ const App: React.FC = () => {
               <span>Back</span>
             </Button>
             <Button
-              onClick={handleProviderSelection}
-              disabled={!selectedDate || !selectedTime || isSelectingProvider}
-              variant={selectedDate && selectedTime && !isSelectingProvider ? "black" : "disabled"}
+              onClick={() => {
+                if (!selectedDate || !selectedTime) {
+                  alert('Please select a date and time to continue.');
+                  return;
+                }
+                setCurrentStep(4);
+              }}
+              disabled={!selectedDate || !selectedTime}
+              variant={selectedDate && selectedTime ? "black" : "disabled"}
               className="w-full md:w-auto"
             >
-              {isSelectingProvider ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                 
-                </>
-              ) : (
-                <>
-                  <span>Next</span>
-                  
-                </>
-              )}
+              <span>Next</span>
             </Button>
           </div>
         </div>
@@ -1427,7 +1386,6 @@ const App: React.FC = () => {
           setProviderBookingId(null);
           setConfirmationDetails(null);
           setGuestId(null);
-          setIsSelectingProvider(false);
         }}
       />
     </AppWrapper>

@@ -191,14 +191,15 @@ export class BookingService {
       });
 
       if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         try {
           const errorData = await response.json();
-          errorMessage = errorData?.message || errorData?.error || errorMessage;
-        } catch {
-          /* ignore JSON parse error */
+          // Preserve the full error structure
+          const error = new Error(JSON.stringify(errorData));
+          throw error;
+        } catch (jsonError) {
+          // If can't parse JSON, throw a generic error
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -728,8 +729,14 @@ export class BookingService {
         try {
           const errorData = await response.json();
           console.error('❌ Guest API error details:', errorData);
-          throw new Error(JSON.stringify(errorData));
+          // Preserve the full error structure for better error handling
+          const error = new Error(JSON.stringify(errorData));
+          throw error;
         } catch (jsonError) {
+          // If JSON parsing fails, throw the original error
+          if (jsonError instanceof Error && jsonError.message.startsWith('{')) {
+            throw jsonError;
+          }
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
       }
